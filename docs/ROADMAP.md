@@ -8,14 +8,37 @@ Phases are ordered by dependency — each builds on the previous. Within a phase
 
 ---
 
+## Architectural Decisions
+
+### `internal/srs/` vs `internal/store/` separation
+
+`internal/srs/` contains only pure functions (SM-2 math, quality mapping, state transitions) with no dependencies on the database or config. `internal/store/` contains all DB query functions (`PickNext`, `RecordAttempt`, `SaveSRSState`) and imports `srs` for types.
+
+The wiring: Cobra commands / Bubble Tea models call `store` to fetch data, pass it to `srs` for computation, then call `store` again to persist. If the DB layer changes, only `store` changes. If the algorithm changes, only `srs` changes.
+
+### Testing conventions
+
+- SM-2 pure functions (`UpdateEF`, `QualityFromDuration`, `UpdateSRS`) must have comprehensive table-driven tests covering all edge cases — no DB setup required.
+- Store and picker tests use `db.OpenMemory()` (an in-memory SQLite helper in the `db` package that applies all migrations) so tests are isolated and self-contained.
+
+### Config thresholds
+
+Quality mapping uses two thresholds per difficulty (`fast` and `normal`). Duration < `fast` → quality 5; < `normal` → quality 4; ≥ `normal` → quality 3. The `slow` key is not used.
+
+### mastered_before boost
+
+The interval boost for previously-mastered problems applies when `mastered_before == true` AND `repetition_count > 1` (after incrementing on a success). This means the user has had at least two consecutive successes since coming back — clearly still knows it.
+
+---
+
 ## Phase 1: SRS Engine (core logic, no UI)
 
 **Goal:** Complete the spaced repetition engine so it can pick problems and update state after attempts. Pure logic + database queries, fully testable without TUI or browser.
 
-**Files:** `internal/srs/srs.go`, `internal/srs/srs_test.go`
+**Files:** `internal/srs/srs.go`, `internal/srs/srs_test.go`, `internal/store/store.go`, `internal/store/store_test.go`
 
 ### 1.1 Quality mapping
-- `QualityFromDuration(difficulty string, durationMin int) int` — returns 3/4/5 based on thresholds from Viper config
+- `QualityFromDuration(durationMin int, t Thresholds) int` — returns 3/4/5 based on passed thresholds (caller looks up difficulty-specific thresholds from config)
 - Failure quality is handled by the caller (hardcoded to 1), not this function
 
 ### 1.2 SRS state update
@@ -27,15 +50,15 @@ Phases are ordered by dependency — each builds on the previous. Within a phase
 - Uses existing `UpdateEF`
 
 ### 1.3 Picker queries
-- `PickNext(db *sqlx.DB, playlistID *int) (*Problem, bool, error)` — returns next problem + whether it's due or upcoming
+- `store.PickNext(db *sqlx.DB, playlistID *int) (*Problem, *srs.ProblemSRS, bool, error)` — returns problem + SRS state + whether it's due or upcoming
   - Filter by active playlist (if set)
   - Due: `next_review_date <= today`, pick most overdue
   - If nothing due: pick nearest future review date
   - Return bool indicating due vs. upcoming (for TUI messaging)
 
-### 1.4 Database helpers
+### 1.4 Database helpers (in `internal/store/`)
 - `RecordAttempt(db, problemID, startedAt, completedAt, result, durationSec, quality)` — insert attempt row
-- `SaveSRSState(db, ProblemSRS)` — update problem_srs row
+- `SaveSRSState(db, srs.ProblemSRS)` — update problem_srs row
 
 ### 1.5 Tests
 - Table-driven tests for `QualityFromDuration` (all difficulty×duration combos + boundaries)
