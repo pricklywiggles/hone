@@ -103,6 +103,7 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 	})
 
 	// Difficulty: <span class="difficulty-pill medium">Medium</span>
+	// Try per-class selector first; fall back to reading text from .difficulty-pill.
 	for _, d := range []string{"easy", "medium", "hard"} {
 		rod.Try(func() {
 			page.MustElement(`.difficulty-pill.` + d)
@@ -111,6 +112,14 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 		if meta.Difficulty != "" {
 			break
 		}
+	}
+	if meta.Difficulty == "" {
+		rod.Try(func() {
+			text := strings.TrimSpace(strings.ToLower(page.MustElement(`.difficulty-pill`).MustText()))
+			if text == "easy" || text == "medium" || text == "hard" {
+				meta.Difficulty = text
+			}
+		})
 	}
 
 	// Topics: find the <summary> with text "Topics", get its parent <details>,
@@ -143,6 +152,9 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 
 	if meta.Title == "" {
 		return meta, fmt.Errorf("could not extract title from NeetCode page")
+	}
+	if meta.Difficulty == "" {
+		return meta, fmt.Errorf("could not extract difficulty from NeetCode page")
 	}
 	return meta, nil
 }
