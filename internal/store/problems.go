@@ -1,8 +1,26 @@
 package store
 
 import (
+	"database/sql"
+	"errors"
+
 	"github.com/jmoiron/sqlx"
 )
+
+// GetProblemBySlug returns the problem matching platform+slug, or nil if not found.
+func GetProblemBySlug(db *sqlx.DB, platform, slug string) (*Problem, error) {
+	var p Problem
+	err := db.Get(&p,
+		`SELECT id, platform, slug, title, difficulty, created_at FROM problems WHERE platform = ? AND slug = ?`,
+		platform, slug)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
 
 // InsertProblem inserts a problem and its topics, returning the new problem ID.
 // Topics are upserted (INSERT OR IGNORE) and linked via problem_topics.

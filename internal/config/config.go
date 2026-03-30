@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pricklywiggles/hone/internal/srs"
 	"github.com/spf13/viper"
@@ -115,6 +116,15 @@ func ClearActiveTopic() error {
 		return viper.SafeWriteConfig()
 	}
 	return nil
+}
+
+// BuildURL constructs a problem URL from platform + slug using the configured template.
+func BuildURL(platform, slug string) string {
+	tmpl := viper.GetString("platforms." + platform + ".url_template")
+	if tmpl == "" {
+		return "https://" + platform + ".com/problems/" + slug + "/"
+	}
+	return strings.ReplaceAll(tmpl, "{{slug}}", slug)
 }
 
 func setDefaults() {
