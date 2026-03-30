@@ -27,7 +27,7 @@ universal_binaries:
 archives:
   - ids: [hone-universal]
     name_template: "{{ .ProjectName }}_{{ .Version }}_darwin_universal"
-    format: tar.gz
+    formats: [tar.gz]
     files:
       - LICENSE
       - README.md
@@ -55,7 +55,7 @@ changelog:
       - Merge pull request
       - Merge branch
 
-brews:
+homebrew_casks:
   - name: hone
     ids: [hone-universal]
     repository:
