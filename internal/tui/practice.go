@@ -28,6 +28,12 @@ const (
 type practiceTickMsg struct{}
 type practiceResultMsg monitor.Result
 type practiceSavedMsg string // carries the next review date after DB write
+type practiceNextMsg struct {
+	problem  *store.Problem
+	srsState *srs.ProblemSRS
+	isDue    bool
+}
+type practiceNoNextMsg struct{}
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -35,17 +41,18 @@ type practiceSavedMsg string // carries the next review date after DB write
 // startedAt and cancelFn are initialised in the constructor so they are
 // available from the first tick / render.
 type PracticeModel struct {
-	state      practiceState
-	problem    *store.Problem
-	srsState   *srs.ProblemSRS
-	isDue      bool
-	startedAt  time.Time
-	result     *monitor.Result
-	nextDate   string
-	cancelFn   context.CancelFunc
-	ctx        context.Context
-	db         *sqlx.DB
-	profileDir string
+	state           practiceState
+	problem         *store.Problem
+	srsState        *srs.ProblemSRS
+	isDue           bool
+	startedAt       time.Time
+	result          *monitor.Result
+	nextDate        string
+	cancelFn        context.CancelFunc
+	ctx             context.Context
+	db              *sqlx.DB
+	profileDir      string
+	activePlaylistID *int
 }
 
 func NewPracticeModel(
@@ -54,17 +61,19 @@ func NewPracticeModel(
 	problem *store.Problem,
 	srsState *srs.ProblemSRS,
 	isDue bool,
+	activePlaylistID *int,
 ) PracticeModel {
 	ctx, cancel := context.WithCancel(context.Background())
 	return PracticeModel{
-		db:         db,
-		profileDir: profileDir,
-		problem:    problem,
-		srsState:   srsState,
-		isDue:      isDue,
-		startedAt:  time.Now(),
-		ctx:        ctx,
-		cancelFn:   cancel,
+		db:              db,
+		profileDir:      profileDir,
+		problem:         problem,
+		srsState:        srsState,
+		isDue:           isDue,
+		startedAt:       time.Now(),
+		ctx:             ctx,
+		cancelFn:        cancel,
+		activePlaylistID: activePlaylistID,
 	}
 }
 
@@ -80,12 +89,12 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c", "q", "esc":
 			m.cancelFn()
 			return m, tea.Quit
-		default:
+		case "n", "enter":
 			if m.state == practiceDone {
-				return m, tea.Quit
+				return m, m.fetchNext()
 			}
 		}
 
@@ -103,6 +112,23 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case practiceSavedMsg:
 		m.nextDate = string(msg)
+
+	case practiceNextMsg:
+		ctx, cancel := context.WithCancel(context.Background())
+		m.problem = msg.problem
+		m.srsState = msg.srsState
+		m.isDue = msg.isDue
+		m.startedAt = time.Now()
+		m.result = nil
+		m.nextDate = ""
+		m.state = practiceWaiting
+		m.ctx = ctx
+		m.cancelFn = cancel
+		url := platformURL(m.problem.Platform, m.problem.Slug)
+		return m, tea.Batch(tickCmd(), waitForResult(ctx, m.problem.Platform, url, m.profileDir))
+
+	case practiceNoNextMsg:
+		return m, tea.Quit
 	}
 
 	return m, nil
@@ -133,6 +159,16 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 		_ = store.SaveSRSState(m.db, newState)
 
 		return practiceSavedMsg(newState.NextReviewDate)
+	}
+}
+
+func (m PracticeModel) fetchNext() tea.Cmd {
+	return func() tea.Msg {
+		problem, srsState, isDue, err := store.PickNext(m.db, m.activePlaylistID)
+		if err != nil || problem == nil {
+			return practiceNoNextMsg{}
+		}
+		return practiceNextMsg{problem: problem, srsState: srsState, isDue: isDue}
 	}
 }
 
@@ -234,7 +270,7 @@ func (m PracticeModel) viewDone() string {
 		Width(52).
 		Render(content)
 
-	return "\n" + card + "\n\n  " + prHintStyle.Render("press any key to exit")
+	return "\n" + card + "\n\n  " + prHintStyle.Render("n / enter: next problem • q: quit")
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
