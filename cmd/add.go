@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/pricklywiggles/hone/internal/scraper"
 	"github.com/pricklywiggles/hone/internal/store"
@@ -27,7 +28,7 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("parsing URL: %w", err)
 		}
 
-		meta, err := scraper.Scrape(plat, slug)
+		meta, err := scraper.Scrape(plat, slug, config.BrowserProfileDir())
 		if err != nil {
 			return fmt.Errorf("scraping problem: %w", err)
 		}

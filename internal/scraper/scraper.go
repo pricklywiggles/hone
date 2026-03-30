@@ -17,15 +17,15 @@ type ProblemMeta struct {
 }
 
 // Scrape fetches problem metadata from the platform page for the given slug.
-// Uses headless Rod. Timeout: 30 seconds.
-func Scrape(platform, slug string) (ProblemMeta, error) {
+// Uses headless Rod with the persistent browser profile. Timeout: 30 seconds.
+func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 	tmpl := viper.GetString("platforms." + platform + ".url_template")
 	if tmpl == "" {
 		return ProblemMeta{}, fmt.Errorf("no URL template configured for platform %q", platform)
 	}
 	pageURL := strings.ReplaceAll(tmpl, "{{slug}}", slug)
 
-	u := launcher.New().Headless(true).MustLaunch()
+	u := launcher.New().UserDataDir(profileDir).Headless(true).MustLaunch()
 	browser := rod.New().ControlURL(u).MustConnect()
 	defer browser.MustClose()
 

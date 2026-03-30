@@ -44,6 +44,11 @@ func DataDir() string {
 	return filepath.Join(homeDir, ".local", "share", "hone")
 }
 
+func BrowserProfileDir() string {
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".local", "share", "hone", "browser-profile")
+}
+
 // ThresholdsFor returns the fast/normal duration thresholds for the given
 // difficulty ("easy", "medium", "hard") from Viper config.
 func ThresholdsFor(difficulty string) srs.Thresholds {
