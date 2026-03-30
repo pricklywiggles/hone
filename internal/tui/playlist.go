@@ -22,7 +22,7 @@ type playlistItem struct {
 
 func (i playlistItem) Title() string {
 	if i.active {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true).Render("* " + i.playlist.Name)
+		return "* " + i.playlist.Name
 	}
 	return "  " + i.playlist.Name
 }
@@ -50,7 +50,6 @@ func newPlaylistList(items []list.Item, w, h int) list.Model {
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
 		Foreground(lipgloss.Color("241")).
 		BorderLeftForeground(lipgloss.Color("62"))
-
 	l := list.New(items, delegate, w, h)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
