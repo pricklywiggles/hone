@@ -83,87 +83,83 @@ func detectorFor(platform string) detector {
 	}
 }
 
-// resultIndicatorText returns whatever result-related text is currently visible
-// on the page, used to detect state changes between polls.
+// resultIndicatorText returns a string representing any visible submission
+// result on the page. Empty means no result is shown yet.
 func resultIndicatorText(page *rod.Page, platform string) string {
 	switch platform {
 	case "leetcode":
-		return textOf(page, leetcodeResultSelectors...)
+		return elementExists(page, leetcodeSuccess, leetcodeFailure)
 	default:
-		return textOf(page, neetcodeResultSelectors...)
+		return elementExists(page, neetcodeSuccess, neetcodeFailure)
 	}
 }
 
 // ── NeetCode ─────────────────────────────────────────────────────────────────
 //
-// After submitting on NeetCode, a result panel appears below the editor.
-// Tune these selectors by opening DevTools after a submission and finding
-// the element that shows "Accepted" / "Wrong Answer" etc.
+// Submission result is an <h1> with one of these classes:
 //
-// Current best-guess selectors (update after first live test):
-var neetcodeResultSelectors = []string{
-	".result-container",
-	".submission-result",
-	"[class*='result']",
-}
-
-var neetcodeSuccess = []string{"Accepted"}
-var neetcodeFailure = []string{"Wrong Answer", "Time Limit Exceeded", "Runtime Error", "Memory Limit Exceeded", "Compile Error", "Output Limit Exceeded"}
+//	h1.submission-result-accepted  →  "Accepted"
+//	h1.submission-result-wrong     →  "Wrong Answer" / "Time Limit Exceeded" / etc.
+var neetcodeSuccess = []string{"h1.submission-result-accepted"}
+var neetcodeFailure = []string{"h1.submission-result-wrong"}
 
 func detectNeetCode(page *rod.Page) (bool, bool) {
-	text := strings.ToLower(textOf(page, neetcodeResultSelectors...))
-	if text == "" {
-		// Fallback: scan full body for result strings.
-		text = strings.ToLower(bodyText(page))
+	if elementPresent(page, neetcodeSuccess...) {
+		return true, true
 	}
-	for _, s := range neetcodeSuccess {
-		if strings.Contains(text, strings.ToLower(s)) {
-			return true, true
-		}
-	}
-	for _, s := range neetcodeFailure {
-		if strings.Contains(text, strings.ToLower(s)) {
-			return false, true
-		}
+	if elementPresent(page, neetcodeFailure...) {
+		return false, true
 	}
 	return false, false
 }
 
 // ── LeetCode ─────────────────────────────────────────────────────────────────
 //
-// LeetCode shows verdicts in a dedicated result panel.
-// Tune selectors below after inspecting the live DOM.
-var leetcodeResultSelectors = []string{
-	"[data-e2e-locator='submission-result']",
-	".result-state",
-	"[class*='result-state']",
-}
-
-var leetcodeSuccess = []string{"Accepted"}
-var leetcodeFailure = []string{"Wrong Answer", "Time Limit Exceeded", "Runtime Error", "Memory Limit Exceeded", "Compile Error", "Output Limit Exceeded"}
+// Tune these selectors after inspecting the live DOM on LeetCode.
+var leetcodeSuccess = []string{"[data-e2e-locator='submission-result']"}
+var leetcodeFailure = []string{".result-state--error", ".result-state--fail"}
 
 func detectLeetCode(page *rod.Page) (bool, bool) {
-	text := strings.ToLower(textOf(page, leetcodeResultSelectors...))
-	if text == "" {
-		text = strings.ToLower(bodyText(page))
+	text := strings.ToLower(textOf(page, leetcodeSuccess...))
+	if strings.Contains(text, "accepted") {
+		return true, true
 	}
-	for _, s := range leetcodeSuccess {
-		if strings.Contains(text, strings.ToLower(s)) {
-			return true, true
-		}
-	}
-	for _, s := range leetcodeFailure {
-		if strings.Contains(text, strings.ToLower(s)) {
-			return false, true
-		}
+	if elementPresent(page, leetcodeFailure...) {
+		return false, true
 	}
 	return false, false
 }
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
-// textOf returns combined text content of the first matching element for each
-// selector, silently skipping selectors that match nothing.
+// elementPresent returns true if any of the selectors matches an element.
+func elementPresent(page *rod.Page, selectors ...string) bool {
+	for _, sel := range selectors {
+		found := false
+		rod.Try(func() {
+			page.MustElement(sel)
+			found = true
+		})
+		if found {
+			return true
+		}
+	}
+	return false
+}
+
+// elementExists returns a non-empty string if any result selector is present,
+// used for initial-state snapshotting.
+func elementExists(page *rod.Page, successSels, failureSels []string) string {
+	if elementPresent(page, successSels...) {
+		return "success"
+	}
+	if elementPresent(page, failureSels...) {
+		return "failure"
+	}
+	return ""
+}
+
+// textOf returns combined text of the first element matching each selector.
 func textOf(page *rod.Page, selectors ...string) string {
 	var parts []string
 	for _, sel := range selectors {
@@ -175,12 +171,4 @@ func textOf(page *rod.Page, selectors ...string) string {
 		})
 	}
 	return strings.Join(parts, " ")
-}
-
-func bodyText(page *rod.Page) string {
-	var t string
-	rod.Try(func() {
-		t = page.MustElement("body").MustText()
-	})
-	return t
 }
