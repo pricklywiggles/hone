@@ -19,7 +19,8 @@ builds:
       - -trimpath
 
 archives:
-  - ids: [hone]
+  - id: hone
+    ids: [hone]
     name_template: "{{ .ProjectName }}_{{ .Version }}_darwin_{{ .Arch }}"
     formats: [tar.gz]
     files:
