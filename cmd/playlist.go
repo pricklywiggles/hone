@@ -32,6 +32,11 @@ func init() {
 var playlistCmd = &cobra.Command{
 	Use:   "playlist",
 	Short: "Manage playlists",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		m := tui.NewPlaylistHubModel(appDB, config.ActivePlaylistID())
+		_, err := tui.Run(m)
+		return err
+	},
 }
 
 var playlistCreateCmd = &cobra.Command{
