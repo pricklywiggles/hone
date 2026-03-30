@@ -12,11 +12,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Version is set at build time via -ldflags.
+var Version = "dev"
+
 var appDB *sqlx.DB
 
 var rootCmd = &cobra.Command{
-	Use:   "hone",
-	Short: "Practice coding problems with spaced repetition",
+	Use:     "hone",
+	Short:   "Practice coding problems with spaced repetition",
+	Version: Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := config.Init(); err != nil {
 			return fmt.Errorf("config: %w", err)
