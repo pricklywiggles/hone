@@ -117,15 +117,30 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 		}
 	}
 
-	// Topics: links or spans near a "Topics" label
+	// Topics: find the <summary> with text "Topics", get its parent <details>,
+	// then collect a.company-tag-reveal-btn links within it.
+	// (company-tags-container is reused elsewhere so we anchor on the summary.)
 	var topics []string
 	rod.Try(func() {
-		els := page.MustElements(`a[href*="/problems/"]`)
-		for _, el := range els {
-			t := strings.TrimSpace(strings.ToLower(el.MustText()))
-			if t != "" && t != meta.Title {
-				topics = append(topics, t)
+		summaries := page.MustElements(`summary`)
+		for _, s := range summaries {
+			if strings.TrimSpace(s.MustText()) != "Topics" {
+				continue
 			}
+			parent := s.MustParent()
+			links, _ := parent.Elements(`a.company-tag-reveal-btn`)
+			for _, a := range links {
+				// href="/practice/problem-list/binary-search" → "binary-search"
+				href, _ := a.Attribute("href")
+				if href != nil && *href != "" {
+					parts := strings.Split(strings.Trim(*href, "/"), "/")
+					slug := parts[len(parts)-1]
+					if slug != "" {
+						topics = append(topics, slug)
+					}
+				}
+			}
+			break
 		}
 	})
 	meta.Topics = dedup(topics)
