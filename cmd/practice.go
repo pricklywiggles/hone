@@ -28,7 +28,8 @@ var practiceCmd = &cobra.Command{
 		}
 
 		m := tui.NewPracticeModel(appDB, config.BrowserProfileDir(), problem, srsState, isDue, config.ActivePlaylistID())
-		_, err = tui.Run(m)
+		router := tui.NewRouter(m)
+		_, err = tui.Run(router)
 		return err
 	},
 }

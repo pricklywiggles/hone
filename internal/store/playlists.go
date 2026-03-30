@@ -38,6 +38,62 @@ func ListPlaylists(db *sqlx.DB) ([]Playlist, error) {
 	return playlists, nil
 }
 
+// SimpleProblem is a lightweight problem record for picker/list views.
+type SimpleProblem struct {
+	ID         int    `db:"id"`
+	Title      string `db:"title"`
+	Difficulty string `db:"difficulty"`
+}
+
+// AddProblemToPlaylist links a problem to a playlist. Idempotent.
+func AddProblemToPlaylist(db *sqlx.DB, playlistID, problemID int) error {
+	_, err := db.Exec(
+		`INSERT OR IGNORE INTO playlist_problems (playlist_id, problem_id) VALUES (?, ?)`,
+		playlistID, problemID,
+	)
+	return err
+}
+
+// RemoveProblemFromPlaylist unlinks a problem from a playlist.
+func RemoveProblemFromPlaylist(db *sqlx.DB, playlistID, problemID int) error {
+	_, err := db.Exec(
+		`DELETE FROM playlist_problems WHERE playlist_id = ? AND problem_id = ?`,
+		playlistID, problemID,
+	)
+	return err
+}
+
+// ListAllProblemsForPicker returns all problems ordered by title, annotated with
+// whether they already belong to playlistID.
+func ListAllProblemsForPicker(db *sqlx.DB, playlistID int) ([]SimpleProblem, []bool, error) {
+	type pickerRow struct {
+		ID         int    `db:"id"`
+		Title      string `db:"title"`
+		Difficulty string `db:"difficulty"`
+		InPlaylist bool   `db:"in_playlist"`
+	}
+	var rows []pickerRow
+	err := db.Select(&rows, `
+		SELECT p.id, p.title, p.difficulty,
+			EXISTS(
+				SELECT 1 FROM playlist_problems pp
+				WHERE pp.playlist_id = ? AND pp.problem_id = p.id
+			) AS in_playlist
+		FROM problems p
+		ORDER BY p.title
+	`, playlistID)
+	if err != nil {
+		return nil, nil, err
+	}
+	problems := make([]SimpleProblem, len(rows))
+	checked := make([]bool, len(rows))
+	for i, r := range rows {
+		problems[i] = SimpleProblem{ID: r.ID, Title: r.Title, Difficulty: r.Difficulty}
+		checked[i] = r.InPlaylist
+	}
+	return problems, checked, nil
+}
+
 // GetPlaylistByName returns a playlist by name, or sql.ErrNoRows if not found.
 func GetPlaylistByName(db *sqlx.DB, name string) (Playlist, error) {
 	var p Playlist

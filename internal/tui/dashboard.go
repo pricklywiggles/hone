@@ -1,0 +1,243 @@
+package tui
+
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jmoiron/sqlx"
+	"github.com/pricklywiggles/hone/internal/config"
+)
+
+type tabID int
+
+const (
+	tabStats     tabID = iota
+	tabProblems
+	tabPlaylists
+	tabTopics
+)
+
+// tabActivatedMsg is sent to a tab model when it becomes the active tab.
+// Tabs use this to refresh their data.
+type tabActivatedMsg struct{}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+var (
+	dashLogoStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("62"))
+
+	dashActiveTabStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("62")).
+				Underline(true).
+				Padding(0, 1)
+
+	dashInactiveTabStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("241")).
+				Padding(0, 1)
+
+	dashDividerStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("237"))
+
+	dashTabBarStyle = lipgloss.NewStyle().
+			PaddingLeft(1)
+)
+
+// ── Dashboard model ───────────────────────────────────────────────────────────
+
+type DashboardModel struct {
+	active           tabID
+	stats            StatsTabModel
+	problems         ProblemsTabModel
+	playlists        PlaylistHubModel
+	topics           TopicsTabModel
+	width            int
+	height           int
+	db               *sqlx.DB
+	profileDir       string
+	activePlaylistID *int
+}
+
+func NewDashboardModel(db *sqlx.DB, profileDir string, activePlaylistID *int) DashboardModel {
+	tabH := 3  // tab bar height (2 lines + divider)
+	contentH := 24 - tabH
+
+	return DashboardModel{
+		active:           tabStats,
+		stats:            NewStatsTabModel(db, contentH),
+		problems:         NewProblemsTabModel(db, profileDir, activePlaylistID, contentH),
+		playlists:        NewPlaylistHubModel(db, activePlaylistID),
+		topics:           NewTopicsTabModel(db, contentH),
+		db:               db,
+		profileDir:       profileDir,
+		activePlaylistID: activePlaylistID,
+	}
+}
+
+func (m DashboardModel) Init() tea.Cmd {
+	return tea.Batch(
+		m.stats.loadCmd(),
+		m.problems.loadCmd(),
+		m.topics.loadCmd(),
+		m.playlists.Init(),
+	)
+}
+
+func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		contentH := msg.Height - 3
+		m.stats = m.stats.withHeight(contentH)
+		m.problems = m.problems.withHeight(contentH)
+		m.topics = m.topics.withHeight(contentH)
+		var cmd tea.Cmd
+		pm, c := m.playlists.Update(msg)
+		m.playlists = pm.(PlaylistHubModel)
+		cmd = c
+		return m, cmd
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c":
+			return m, tea.Quit
+		case "q":
+			if m.active != tabPlaylists || !m.playlists.isFiltering() {
+				return m, Pop()
+			}
+		case "1":
+			return m.switchTab(tabStats)
+		case "2":
+			return m.switchTab(tabProblems)
+		case "3":
+			return m.switchTab(tabPlaylists)
+		case "4":
+			return m.switchTab(tabTopics)
+		}
+	}
+
+	return m.routeToActive(msg)
+}
+
+func (m DashboardModel) switchTab(t tabID) (DashboardModel, tea.Cmd) {
+	m.active = t
+	var cmd tea.Cmd
+	switch t {
+	case tabStats:
+		m.stats, cmd = m.stats.activated()
+	case tabProblems:
+		m.problems, cmd = m.problems.activated()
+	case tabTopics:
+		m.topics, cmd = m.topics.activated()
+	}
+	return m, cmd
+}
+
+func (m DashboardModel) routeToActive(msg tea.Msg) (DashboardModel, tea.Cmd) {
+	switch m.active {
+	case tabStats:
+		newModel, cmd := m.stats.Update(msg)
+		m.stats = newModel.(StatsTabModel)
+		return m, cmd
+
+	case tabProblems:
+		newModel, cmd := m.problems.Update(msg)
+		m.problems = newModel.(ProblemsTabModel)
+		return m, cmd
+
+	case tabPlaylists:
+		newModel, cmd := m.playlists.Update(msg)
+		m.playlists = newModel.(PlaylistHubModel)
+		return m, cmd
+
+	case tabTopics:
+		newModel, cmd := m.topics.Update(msg)
+		m.topics = newModel.(TopicsTabModel)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m DashboardModel) View() string {
+	var b strings.Builder
+	b.WriteString(m.renderTabBar())
+	b.WriteString("\n")
+
+	switch m.active {
+	case tabStats:
+		b.WriteString(m.stats.View())
+	case tabProblems:
+		b.WriteString(m.problems.View())
+	case tabPlaylists:
+		b.WriteString(m.playlists.View())
+	case tabTopics:
+		b.WriteString(m.topics.View())
+	}
+
+	return b.String()
+}
+
+func (m DashboardModel) renderTabBar() string {
+	type tabDef struct {
+		id    tabID
+		label string
+	}
+	tabs := []tabDef{
+		{tabStats, "1:Stats"},
+		{tabProblems, "2:Problems"},
+		{tabPlaylists, "3:Playlists"},
+		{tabTopics, "4:Topics"},
+	}
+
+	logo := dashLogoStyle.Render("hone")
+
+	var parts []string
+	for _, t := range tabs {
+		if t.id == m.active {
+			parts = append(parts, dashActiveTabStyle.Render(t.label))
+		} else {
+			parts = append(parts, dashInactiveTabStyle.Render(t.label))
+		}
+	}
+
+	// Active playlist indicator at far right
+	playlistNote := ""
+	if m.activePlaylistID != nil {
+		playlistNote = dashInactiveTabStyle.Render("● playlist active")
+	}
+
+	tabRow := logo + "  " + strings.Join(parts, " ")
+	if playlistNote != "" && m.width > 60 {
+		pad := m.width - lipgloss.Width(tabRow) - lipgloss.Width(playlistNote) - 2
+		if pad > 0 {
+			tabRow += strings.Repeat(" ", pad) + playlistNote
+		}
+	}
+
+	divider := dashDividerStyle.Render(strings.Repeat("─", max(m.width, 60)))
+	return dashTabBarStyle.Render(tabRow) + "\n" + divider
+}
+
+func (m DashboardModel) isFiltering() bool { return false }
+
+// isFiltering exposes whether the playlist hub's filter is active (used by dashboard q key).
+func (m PlaylistHubModel) isFiltering() bool {
+	return m.list.FilterState() == 1 // list.Filtering = 1
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// ActivePlaylistID re-reads the active playlist from config (called after playlist changes).
+func (m *DashboardModel) refreshPlaylistID() {
+	m.activePlaylistID = config.ActivePlaylistID()
+	m.problems.activePlaylistID = m.activePlaylistID
+}

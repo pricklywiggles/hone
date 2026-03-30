@@ -110,6 +110,19 @@ func PickNext(db *sqlx.DB, playlistID *int) (*Problem, *srs.ProblemSRS, bool, er
 	return nil, nil, false, err
 }
 
+// GetSRSState returns the SRS state for a problem.
+func GetSRSState(db *sqlx.DB, problemID int) (*srs.ProblemSRS, error) {
+	var s srs.ProblemSRS
+	err := db.Get(&s, `
+		SELECT problem_id, easiness_factor, interval_days, repetition_count,
+		       next_review_date, mastered_before
+		FROM problem_srs WHERE problem_id = ?`, problemID)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 // RecordAttempt inserts a completed attempt row.
 func RecordAttempt(db *sqlx.DB, problemID int, startedAt, completedAt time.Time, result string, durationSec, quality int) error {
 	_, err := db.Exec(`

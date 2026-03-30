@@ -89,9 +89,12 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q", "esc":
+		case "ctrl+c":
 			m.cancelFn()
 			return m, tea.Quit
+		case "q", "esc":
+			m.cancelFn()
+			return m, Pop()
 		case "n", "enter":
 			if m.state == practiceDone {
 				return m, m.fetchNext()
@@ -128,7 +131,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(tickCmd(), waitForResult(ctx, m.problem.Platform, url, m.profileDir))
 
 	case practiceNoNextMsg:
-		return m, tea.Quit
+		return m, Pop()
 	}
 
 	return m, nil

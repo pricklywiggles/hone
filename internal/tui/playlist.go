@@ -126,6 +126,7 @@ type hubState int
 const (
 	hubList   hubState = iota
 	hubCreate
+	hubPicker
 )
 
 type playlistsLoadedMsg struct{ playlists []store.Playlist }
@@ -137,6 +138,7 @@ type PlaylistHubModel struct {
 	activeID  *int
 	list      list.Model
 	input     textinput.Model
+	picker    PlaylistPickerModel
 	statusMsg string
 	width     int
 	height    int
@@ -220,6 +222,17 @@ func (m PlaylistHubModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = hubList
 		return m, nil
 
+	case playlistPickerDoneMsg:
+		m.state = hubList
+		m.statusMsg = hubOKStyle.Render(fmt.Sprintf("✓ %d added, %d removed", msg.added, msg.removed))
+		return m, loadPlaylists(m.db)
+
+	case PopMsg:
+		if m.state == hubPicker {
+			m.state = hubList
+			return m, nil
+		}
+
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.resizeList()
@@ -229,9 +242,19 @@ func (m PlaylistHubModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == hubCreate {
 			return m.updateCreate(msg)
 		}
+		if m.state == hubPicker {
+			newPicker, cmd := m.picker.Update(msg)
+			m.picker = newPicker.(PlaylistPickerModel)
+			return m, cmd
+		}
 		return m.updateList(msg)
 	}
 
+	if m.state == hubPicker {
+		newPicker, cmd := m.picker.Update(msg)
+		m.picker = newPicker.(PlaylistPickerModel)
+		return m, cmd
+	}
 	if m.state == hubList {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
@@ -258,6 +281,12 @@ func (m PlaylistHubModel) updateList(msg tea.KeyMsg) (PlaylistHubModel, tea.Cmd)
 		m.statusMsg = ""
 		m.resizeList()
 		return m, textinput.Blink
+	case "a":
+		if item, ok := m.list.SelectedItem().(playlistItem); ok {
+			m.state = hubPicker
+			m.picker = NewPlaylistPickerModel(m.db, item.playlist.ID, item.playlist.Name, m.height)
+			return m, m.picker.Init()
+		}
 	case "enter":
 		switch item := m.list.SelectedItem().(type) {
 		case noneItem:
@@ -320,6 +349,10 @@ var (
 )
 
 func (m PlaylistHubModel) View() string {
+	if m.state == hubPicker {
+		return m.picker.View()
+	}
+
 	var b strings.Builder
 
 	b.WriteString(m.list.View())
@@ -340,7 +373,7 @@ func (m PlaylistHubModel) View() string {
 			b.WriteString("\n")
 		}
 		b.WriteString("  ")
-		b.WriteString(hubHelpStyle.Render("enter: set active • n: new • /: filter • q: quit"))
+		b.WriteString(hubHelpStyle.Render("enter: set active • a: add problems • n: new • /: filter • q: quit"))
 		b.WriteString("\n")
 	}
 
