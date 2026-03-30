@@ -133,6 +133,16 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.switchTab(tabPlaylists)
 		case "4":
 			return m.switchTab(tabTopics)
+		case "left":
+			if m.active != tabPlaylists || !m.playlists.isFiltering() {
+				prev := (int(m.active) - 1 + 4) % 4
+				return m.switchTab(tabID(prev))
+			}
+		case "right":
+			if m.active != tabPlaylists || !m.playlists.isFiltering() {
+				next := (int(m.active) + 1) % 4
+				return m.switchTab(tabID(next))
+			}
 		}
 	}
 
