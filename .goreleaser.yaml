@@ -58,15 +58,12 @@ changelog:
 homebrew_casks:
   - name: hone
     ids: [hone-universal]
+    binaries: [hone]
     repository:
       owner: pricklywiggles
       name: homebrew-hone
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    url_template: "https://github.com/pricklywiggles/hone/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url:
+      template: "https://github.com/pricklywiggles/hone/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     homepage: https://pricklywiggles.github.io/hone
     description: Practice coding problems with spaced repetition
-    license: MIT
-    install: |
-      bin.install "hone"
-    test: |
-      system "#{bin}/hone", "--version"
