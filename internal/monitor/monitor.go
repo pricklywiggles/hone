@@ -132,23 +132,19 @@ func detectLeetCode(page *rod.Page) (bool, bool) {
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
-// elementPresent returns true if any of the selectors matches an element.
+// elementPresent returns true if any selector currently matches a DOM element.
+// Uses page.Elements (non-blocking snapshot) instead of page.Element (which polls).
 func elementPresent(page *rod.Page, selectors ...string) bool {
 	for _, sel := range selectors {
-		found := false
-		rod.Try(func() {
-			page.MustElement(sel)
-			found = true
-		})
-		if found {
+		els, err := page.Elements(sel)
+		if err == nil && len(els) > 0 {
 			return true
 		}
 	}
 	return false
 }
 
-// elementExists returns a non-empty string if any result selector is present,
-// used for initial-state snapshotting.
+// elementExists returns a non-empty string if any result selector is present now.
 func elementExists(page *rod.Page, successSels, failureSels []string) string {
 	if elementPresent(page, successSels...) {
 		return "success"
@@ -159,16 +155,18 @@ func elementExists(page *rod.Page, successSels, failureSels []string) string {
 	return ""
 }
 
-// textOf returns combined text of the first element matching each selector.
+// textOf returns combined text of elements currently matching each selector.
 func textOf(page *rod.Page, selectors ...string) string {
 	var parts []string
 	for _, sel := range selectors {
-		rod.Try(func() {
-			t := strings.TrimSpace(page.MustElement(sel).MustText())
-			if t != "" {
-				parts = append(parts, t)
-			}
-		})
+		els, err := page.Elements(sel)
+		if err != nil || len(els) == 0 {
+			continue
+		}
+		t, err := els[0].Text()
+		if err == nil && strings.TrimSpace(t) != "" {
+			parts = append(parts, strings.TrimSpace(t))
+		}
 	}
 	return strings.Join(parts, " ")
 }
