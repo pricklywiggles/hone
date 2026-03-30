@@ -41,7 +41,7 @@ var rootCmd = &cobra.Command{
 		}
 		dashboard := tui.NewDashboardModel(appDB, config.BrowserProfileDir(), filter)
 		router := tui.NewRouter(dashboard)
-		_, err := tui.Run(router)
+		_, err := tui.Run(tui.NewSplashModel(router))
 		return err
 	},
 }
