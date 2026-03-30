@@ -59,11 +59,15 @@ func ThresholdsFor(difficulty string) srs.Thresholds {
 }
 
 // ActivePlaylistID returns the configured active playlist ID, or nil if none set.
+// ID 0 is treated as "no playlist" (used to clear the selection).
 func ActivePlaylistID() *int {
 	if !viper.IsSet("active_playlist_id") {
 		return nil
 	}
 	id := viper.GetInt("active_playlist_id")
+	if id == 0 {
+		return nil
+	}
 	return &id
 }
 
@@ -74,6 +78,11 @@ func SetActivePlaylist(id int) error {
 		return viper.SafeWriteConfig()
 	}
 	return nil
+}
+
+// ClearActivePlaylist removes the active playlist selection.
+func ClearActivePlaylist() error {
+	return SetActivePlaylist(0)
 }
 
 func setDefaults() {

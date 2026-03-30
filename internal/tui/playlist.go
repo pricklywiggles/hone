@@ -31,11 +31,24 @@ func (i playlistItem) Description() string {
 
 func (i playlistItem) FilterValue() string { return i.playlist.Name }
 
+// noneItem is the "None (all problems)" sentinel at the top of the list.
+type noneItem struct{ active bool }
+
+func (i noneItem) Title() string       { return "None (all problems)" }
+func (i noneItem) Description() string {
+	if i.active {
+		return "● active · practice from the full problem set"
+	}
+	return "practice from the full problem set"
+}
+func (i noneItem) FilterValue() string { return "none all problems" }
+
 func makePlaylistItems(playlists []store.Playlist, activeID *int) []list.Item {
-	items := make([]list.Item, len(playlists))
-	for i, p := range playlists {
+	items := make([]list.Item, 0, len(playlists)+1)
+	items = append(items, noneItem{active: activeID == nil})
+	for _, p := range playlists {
 		active := activeID != nil && *activeID == p.ID
-		items[i] = playlistItem{playlist: p, active: active}
+		items = append(items, playlistItem{playlist: p, active: active})
 	}
 	return items
 }
@@ -172,6 +185,15 @@ func activatePlaylist(db *sqlx.DB, id int) tea.Cmd {
 	}
 }
 
+func clearActivePlaylist(db *sqlx.DB) tea.Cmd {
+	return func() tea.Msg {
+		if err := config.ClearActivePlaylist(); err != nil {
+			return playlistHubErrMsg{err}
+		}
+		return loadPlaylists(db)()
+	}
+}
+
 func createPlaylist(db *sqlx.DB, name string) tea.Cmd {
 	return func() tea.Msg {
 		_, err := store.CreatePlaylist(db, name)
@@ -237,7 +259,12 @@ func (m PlaylistHubModel) updateList(msg tea.KeyMsg) (PlaylistHubModel, tea.Cmd)
 		m.resizeList()
 		return m, textinput.Blink
 	case "enter":
-		if item, ok := m.list.SelectedItem().(playlistItem); ok {
+		switch item := m.list.SelectedItem().(type) {
+		case noneItem:
+			m.activeID = nil
+			m.statusMsg = hubOKStyle.Render("✓ Playlist cleared — using all problems")
+			return m, clearActivePlaylist(m.db)
+		case playlistItem:
 			id := item.playlist.ID
 			m.activeID = &id
 			m.statusMsg = hubOKStyle.Render(fmt.Sprintf("✓ Active playlist set to %q", item.playlist.Name))
