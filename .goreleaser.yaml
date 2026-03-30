@@ -1,0 +1,69 @@
+version: 2
+
+project_name: hone
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: hone
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/pricklywiggles/hone/cmd.Version={{.Version}}
+    flags:
+      - -trimpath
+
+universal_binaries:
+  - id: hone-universal
+    ids: [hone]
+    replace: true
+    name_template: hone
+
+archives:
+  - ids: [hone-universal]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_darwin_universal"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  groups:
+    - title: Features
+      regexp: "^.*feat[:(].*"
+      order: 0
+    - title: Bug fixes
+      regexp: "^.*fix[:(].*"
+      order: 1
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+homebrew_casks:
+  - name: hone
+    ids: [hone-universal]
+    binaries: [hone]
+    repository:
+      owner: pricklywiggles
+      name: homebrew-hone
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    url:
+      template: "https://github.com/pricklywiggles/hone/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    homepage: https://pricklywiggles.github.io/hone
+    description: Practice coding problems with spaced repetition

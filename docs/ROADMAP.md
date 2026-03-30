@@ -291,4 +291,4 @@ https://neetcode.io/problems/climbing-stairs/question
 | 6 | `hone import` (playlist-aware bulk import) | ✅ complete |
 | 7 | `hone export` + `hone init` (backup/restore) | ✅ complete |
 | 8 | Documentation (mkdocs site) | ✅ complete |
-| 9 | Distribution (GoReleaser + Homebrew) | not started |
+| 9 | Distribution (GoReleaser + Homebrew) | ✅ complete |
