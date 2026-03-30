@@ -222,6 +222,13 @@ func (m PlaylistHubModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m PlaylistHubModel) updateList(msg tea.KeyMsg) (PlaylistHubModel, tea.Cmd) {
+	// While the list's filter input is active, pass all keys straight through.
+	if m.list.FilterState() == list.Filtering {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	}
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
