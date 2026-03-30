@@ -30,6 +30,12 @@ hone schedules LeetCode and NeetCode problems using the SM-2 algorithm, opens th
 
 ---
 
+## Documentation
+
+Full docs at **https://pricklywiggles.github.io/hone** — user guide, command reference, SM-2 concepts, and developer documentation.
+
+---
+
 ## Install
 
 ```sh
@@ -161,12 +167,6 @@ thresholds:
   medium: { fast: 15, normal: 30 }
   hard:   { fast: 20, normal: 40 }
 ```
-
----
-
-## Documentation
-
-Full docs at **https://pricklywiggles.github.io/hone** — user guide, command reference, SM-2 concepts, and developer documentation.
 
 ---
 
