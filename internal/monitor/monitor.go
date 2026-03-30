@@ -32,6 +32,8 @@ func run(ctx context.Context, platform, problemURL, profileDir string, ch chan<-
 	u := launcher.New().
 		UserDataDir(profileDir).
 		Headless(false).
+		Set("window-size", "1440,900").
+		Set("start-maximized", "").
 		MustLaunch()
 	browser := rod.New().ControlURL(u).MustConnect()
 	defer browser.MustClose()
