@@ -99,28 +99,32 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 	var meta ProblemMeta
 
 	rod.Try(func() {
-		meta.Title = strings.TrimSpace(page.MustElement(`h1`).MustText())
+		el := page.MustElement(`h1`)
+		el.MustWaitVisible()
+		meta.Title = strings.TrimSpace(el.MustText())
 	})
 
 	// Difficulty: <span class="difficulty-pill medium">Medium</span>
-	// Try per-class selector first; fall back to reading text from .difficulty-pill.
-	for _, d := range []string{"easy", "medium", "hard"} {
-		rod.Try(func() {
-			page.MustElement(`.difficulty-pill.` + d)
-			meta.Difficulty = d
-		})
-		if meta.Difficulty != "" {
-			break
+	// Wait for the element to appear (JS-rendered), then check class attribute and text.
+	rod.Try(func() {
+		el := page.MustElement(`.difficulty-pill`)
+		el.MustWaitVisible()
+		class, _ := el.Attribute("class")
+		if class != nil {
+			for _, d := range []string{"easy", "medium", "hard"} {
+				if strings.Contains(*class, d) {
+					meta.Difficulty = d
+					break
+				}
+			}
 		}
-	}
-	if meta.Difficulty == "" {
-		rod.Try(func() {
-			text := strings.TrimSpace(strings.ToLower(page.MustElement(`.difficulty-pill`).MustText()))
+		if meta.Difficulty == "" {
+			text := strings.TrimSpace(strings.ToLower(el.MustText()))
 			if text == "easy" || text == "medium" || text == "hard" {
 				meta.Difficulty = text
 			}
-		})
-	}
+		}
+	})
 
 	// Topics: find the <summary> with text "Topics", get its parent <details>,
 	// then collect a.company-tag-reveal-btn links within it.
