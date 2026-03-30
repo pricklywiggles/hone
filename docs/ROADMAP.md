@@ -113,21 +113,168 @@ Full tabbed dashboard (Stats / Problems / Playlists / Topics) with:
 
 ---
 
-## Phase 6: Distribution
+## Phase 6: `hone import` — Playlist-aware Bulk Import
+
+**Goal:** Import problems from a file with optional playlist grouping. Unlike `add -f` (flat URL list), import understands playlist headers and handles duplicates gracefully.
+
+**Files:** `cmd/import.go`, `internal/importer/importer.go`
+
+### File format
+
+```
+# Favorites
+https://neetcode.io/problems/two-sum/question
+https://neetcode.io/problems/valid-anagram/question
+
+# Week 1
+https://neetcode.io/problems/eating-bananas/question
+
+https://neetcode.io/problems/climbing-stairs/question
+```
+
+- Lines starting with `#` define a playlist boundary. All URLs below belong to that playlist until the next `#` line.
+- If the playlist doesn't exist, create it. If it exists, use the existing one.
+- If a URL's problem already exists in the DB, skip scraping and add the existing problem to the current playlist (if any). If no playlist context, do nothing for existing problems.
+- If a problem doesn't exist, scrape and insert it, then add to the current playlist (if any).
+- URLs outside any `#` section are imported as standalone problems (no playlist assignment).
+- Blank lines and lines starting with `//` are ignored.
+
+### 6.1 File parser (`internal/importer/importer.go`)
+- `ParseImportFile(path string) ([]ImportGroup, error)` — returns ordered groups, each with an optional playlist name and a list of URLs
+- `ImportGroup{Playlist string, URLs []string}` — empty Playlist means "no playlist"
+
+### 6.2 Import engine
+- `RunImport(db *sqlx.DB, profileDir string, groups []ImportGroup, progress func(ImportProgress))` — processes groups sequentially
+- For each URL: check if problem exists (by platform+slug), skip scraping if so, create playlist if needed, add problem→playlist link
+- `ImportProgress{Current, Total int, URL, Status string}` — callback for TUI feedback
+
+### 6.3 Inline progress TUI (`cmd/import.go`)
+- Runs **inline** (no altscreen) — prints progress line-by-line as each URL is processed
+- Spinner on the current item, checkmark/skip/error per completed item
+- Summary at the end: X added, Y skipped (existing), Z errors, N playlists created
+
+### 6.4 Wire up `cmd/import.go`
+- `hone import FILENAME` — single positional argument
+- Validate file exists and is readable before starting
+
+### 6.5 Tests
+- Parser: table-driven tests for various file formats (playlists, mixed, empty lines, comments)
+- Import engine: integration tests with in-memory DB (mock scraper or pre-seeded problems)
+
+---
+
+## Phase 7: `hone export` + `hone init` — Backup & Restore
+
+**Goal:** Export problem/playlist data in a human-readable format and full database state as a JSON backup. Restore from backup with `hone init`.
+
+**Files:** `cmd/export.go`, `cmd/init.go`, `internal/backup/backup.go`
+
+### Export formats
+
+**Default (`hone export`)** — human-readable playlist format, same as the import file format:
+- Groups problems by playlist under `#PlaylistName` headers
+- Problems not in any playlist appear at the top, before any `#` header
+- Each problem is rendered as its URL (constructed from platform + slug + URL template)
+- Round-trips with `hone import`
+
+**Full backup (`hone export --backup`)** — JSON dump of the entire database state:
+```json
+{
+  "version": 1,
+  "exported_at": "2026-03-30T...",
+  "problems": [
+    {
+      "platform": "neetcode", "slug": "two-sum", "title": "Two Sum",
+      "difficulty": "easy", "topics": ["arrays", "hashing"],
+      "srs": { "ef": 2.5, "interval": 6, "reps": 2, "next_review": "2026-04-05", "mastered_before": false },
+      "attempts": [
+        { "started_at": "...", "completed_at": "...", "result": "success", "duration_sec": 480, "quality": 5 }
+      ]
+    }
+  ],
+  "playlists": [
+    { "name": "Favorites", "problems": ["neetcode/two-sum", "neetcode/valid-anagram"] }
+  ],
+  "config": {
+    "active_playlist": "Favorites",
+    "active_topic": null
+  }
+}
+```
+
+### 7.1 Export queries (`internal/backup/backup.go`)
+- `ExportPlaylistFormat(db *sqlx.DB) (string, error)` — generates the `#Playlist` + URL text
+- `ExportFullBackup(db *sqlx.DB) (BackupData, error)` — collects all problems, SRS state, attempts, playlists, config into a struct
+- `BackupData` struct with `json` tags, versioned schema
+
+### 7.2 `cmd/export.go`
+- `hone export` — writes playlist format to stdout (pipe-friendly) or to a file with `-o FILENAME`
+- `hone export --backup` — writes JSON to stdout or `-o FILENAME`
+- `hone export --backup -o backup.json` — common usage
+
+### 7.3 Restore (`internal/backup/restore.go`)
+- `RestoreFromBackup(dbPath string, data BackupData) error` — creates a fresh DB at `dbPath`, applies migrations, inserts all data
+- Validates backup version, rejects if DB already exists at the path
+
+### 7.4 `cmd/init.go`
+- `hone init BACKUPFILE` — reads the JSON backup file, creates the database, restores all state
+- Fails with a clear error if `~/.local/share/hone/data.db` already exists ("database already exists, use `rm` to reset first")
+- Prints summary: X problems, Y playlists, Z attempts restored
+
+### 7.5 Tests
+- Export: round-trip test — seed DB, export playlist format, parse with import parser, verify equivalence
+- Backup/restore: seed DB, export JSON, restore into new in-memory DB, verify all data matches
+- Init: verify it refuses to overwrite an existing DB
+
+---
+
+## Phase 8: Documentation
+
+**Goal:** Add an mkdocs-based documentation site covering both end-user guides and developer/contributor documentation.
+
+**Files:** `mkdocs.yml`, `docs/` (restructured)
+
+### 8.1 mkdocs setup
+- `mkdocs.yml` with Material for MkDocs theme
+- GitHub Pages deployment via GitHub Actions (build on push to main)
+- Navigation structure matching sections below
+
+### 8.2 User documentation
+- **Getting started** — installation (Homebrew, from source), first run, adding your first problem
+- **Commands reference** — every command (`hone`, `hone add`, `hone practice`, `hone playlist`, `hone import`, `hone export`, `hone init`) with examples
+- **Concepts** — spaced repetition overview, how the SM-2 algorithm works in hone, quality mapping, mastered_before boost
+- **Dashboard guide** — tabs walkthrough (Stats, Problems, Playlists, Topics), keyboard shortcuts, filters
+- **Import/export** — file format spec, backup/restore workflow, migration between machines
+- **Configuration** — config file location, overridable thresholds, platform URL templates, browser profile
+
+### 8.3 Developer documentation
+- **Architecture overview** — package map (`srs/`, `store/`, `tui/`, `scraper/`, `monitor/`, `config/`, `platform/`), data flow diagrams
+- **Adding a new platform** — URL parser, scraper selectors, monitor selectors, URL template config
+- **TUI development** — router stack, embedded vs standalone models, `PushMsg`/`PopMsg`, `colorTable` usage
+- **Testing** — `db.OpenMemory()`, table-driven tests, when to use integration vs unit tests
+- **Contributing** — build instructions, PR workflow, code style
+
+### 8.4 CI integration
+- GitHub Actions step: `mkdocs build --strict` on every PR to catch broken links/syntax
+- Deploy to GitHub Pages on merge to main
+
+---
+
+## Phase 9: Distribution
 
 **Goal:** Package for Homebrew installation.
 
 **Files:** `.goreleaser.yaml`, separate tap repo
 
-### 6.1 GoReleaser config
+### 9.1 GoReleaser config
 - macOS arm64 + amd64 builds
 - Homebrew tap configuration
 
-### 6.2 Homebrew tap repo
+### 9.2 Homebrew tap repo
 - Create `homebrew-tap` repo
 - GoReleaser auto-generates formula on release
 
-### 6.3 CI/CD
+### 9.3 CI/CD
 - GitHub Actions workflow: test → build → release on tag
 
 ---
@@ -141,4 +288,7 @@ Full tabbed dashboard (Stats / Problems / Playlists / Topics) with:
 | 3 | `hone playlist` (create, list, select) | ✅ complete |
 | 4 | `hone practice` (browser + SRS) | ✅ complete |
 | 5 | TUI dashboard (all tabs + navigation) | ✅ complete |
-| 6 | Distribution (GoReleaser + Homebrew) | not started |
+| 6 | `hone import` (playlist-aware bulk import) | not started |
+| 7 | `hone export` + `hone init` (backup/restore) | not started |
+| 8 | Documentation (mkdocs site) | not started |
+| 9 | Distribution (GoReleaser + Homebrew) | not started |

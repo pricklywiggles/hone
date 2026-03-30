@@ -121,6 +121,11 @@ The SM-2 easiness factor update is a single generic function: `EF' = EF + (0.1 -
 - `hone` (no args) — open the stats dashboard / home screen
 - `hone practice` — pick and launch the next problem
 - `hone add` — parse a pasted URL to extract platform and slug, scrape the page, and create a problem entry
+- `hone add -f FILE` — batch import from a flat URL list (one per line)
+- `hone import FILE` — playlist-aware bulk import; `#Name` lines define playlist boundaries
+- `hone export` — export problems grouped by playlist in human-readable format (round-trips with `hone import`)
+- `hone export --backup` — full JSON dump of all data (problems, SRS state, attempts, playlists, config)
+- `hone init BACKUPFILE` — restore from a `--backup` JSON file; only works if DB doesn't exist yet
 - `hone playlist create|select|list` — manage playlists
 - `hone stats` — statistics dashboard (same as no-args)
 - `hone topics` — list/filter by topic
