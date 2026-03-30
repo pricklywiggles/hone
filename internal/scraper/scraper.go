@@ -102,17 +102,13 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 		meta.Title = strings.TrimSpace(page.MustElement(`h1`).MustText())
 	})
 
-	// Difficulty: look for a span/div containing "Easy", "Medium", or "Hard"
-	for _, d := range []string{"Easy", "Medium", "Hard"} {
-		if err := rod.Try(func() {
-			els := page.MustElements(`span, div`)
-			for _, el := range els {
-				if strings.TrimSpace(el.MustText()) == d {
-					meta.Difficulty = strings.ToLower(d)
-					return
-				}
-			}
-		}); err == nil && meta.Difficulty != "" {
+	// Difficulty: <span class="difficulty-pill medium">Medium</span>
+	for _, d := range []string{"easy", "medium", "hard"} {
+		rod.Try(func() {
+			page.MustElement(`.difficulty-pill.` + d)
+			meta.Difficulty = d
+		})
+		if meta.Difficulty != "" {
 			break
 		}
 	}
