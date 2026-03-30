@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -24,11 +25,12 @@ type TopicsTabModel struct {
 	loaded bool
 	height int
 	db     *sqlx.DB
+	help   help.Model
 }
 
 func NewTopicsTabModel(db *sqlx.DB, height int) TopicsTabModel {
 	t := newTopicsTable(nil, topicsBodyHeight(height))
-	return TopicsTabModel{table: t, db: db, height: height}
+	return TopicsTabModel{table: t, db: db, height: height, help: newHelpModel()}
 }
 
 func topicsBodyHeight(h int) int {
@@ -95,7 +97,7 @@ func (m TopicsTabModel) View() string {
 	b.WriteString("\n\n")
 	b.WriteString(m.table.View())
 	b.WriteString("\n\n  ")
-	b.WriteString(statsDimStyle.Render("r: refresh"))
+	b.WriteString(m.help.View(topicsKeyMap{}))
 	return b.String()
 }
 
@@ -103,11 +105,12 @@ func (m TopicsTabModel) View() string {
 
 func newTopicsTable(rows []table.Row, height int) table.Model {
 	cols := []table.Column{
-		{Title: "Topic", Width: 26},
+		{Title: "Topic", Width: 22},
+		{Title: "Progress", Width: 16},
 		{Title: "Problems", Width: 9},
 		{Title: "Mastered", Width: 9},
-		{Title: "Due Today", Width: 10},
-		{Title: "Success Rate", Width: 14},
+		{Title: "Due", Width: 5},
+		{Title: "Rate", Width: 6},
 	}
 
 	t := table.New(
@@ -136,12 +139,19 @@ func newTopicsTable(rows []table.Row, height int) table.Model {
 func buildTopicRows(rows []store.TopicStat) []table.Row {
 	out := make([]table.Row, len(rows))
 	for i, r := range rows {
-		rateStr := statsDimStyle.Render("—")
+		notMastered := r.Attempted - r.Mastered
+		if notMastered < 0 {
+			notMastered = 0
+		}
+		bar := renderSegmentedBar(r.Total, 16,
+			barSegment{value: r.Mastered, color: barMasteredColor},
+			barSegment{value: notMastered, color: barAttemptColor},
+		)
+
+		rateStr := statsDimStyle.Render("  —")
 		if r.SuccessRate >= 0 {
 			pct := int(r.SuccessRate * 100)
-			color := rateColor(pct)
-			rateStr = lipgloss.NewStyle().Foreground(color).Render(fmt.Sprintf("%d%%", pct))
-			rateStr += "  " + renderBar(r.SuccessRate, 6, string(color))
+			rateStr = lipgloss.NewStyle().Foreground(rateColor(pct)).Render(fmt.Sprintf("%3d%%", pct))
 		}
 
 		dueStr := statsDimStyle.Render("—")
@@ -150,7 +160,8 @@ func buildTopicRows(rows []store.TopicStat) []table.Row {
 		}
 
 		out[i] = table.Row{
-			truncate(r.Name, 26),
+			truncate(r.Name, 22),
+			bar,
 			fmt.Sprintf("%d", r.Total),
 			fmt.Sprintf("%d", r.Mastered),
 			dueStr,

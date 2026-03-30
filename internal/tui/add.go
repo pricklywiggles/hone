@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,6 +41,7 @@ type AddModel struct {
 	err        error
 	db         *sqlx.DB
 	profileDir string
+	help       help.Model
 }
 
 func NewAddModel(db *sqlx.DB, profileDir, initialURL string) AddModel {
@@ -57,6 +59,7 @@ func NewAddModel(db *sqlx.DB, profileDir, initialURL string) AddModel {
 		spinner:    sp,
 		db:         db,
 		profileDir: profileDir,
+		help:       newHelpModel(),
 	}
 	if initialURL != "" {
 		m.state = stateScraping
@@ -146,7 +149,6 @@ func (m AddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 var (
 	addHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
 	addLabelStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	addHintStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Italic(true)
 	addTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15"))
 	addCardStyle   = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -172,7 +174,7 @@ func (m AddModel) View() string {
 			"\n  %s\n\n  %s\n\n  %s",
 			addHeaderStyle.Render("Add Problem"),
 			m.input.View(),
-			addHintStyle.Render("LeetCode or NeetCode URL • esc to cancel"),
+			m.help.View(addInputKeyMap{}),
 		)
 
 	case stateScraping:
@@ -196,7 +198,7 @@ func (m AddModel) View() string {
 			diffStyle.Render(r.meta.Difficulty)+"  "+addLabelStyle.Render(r.plat),
 			topicsStr,
 		)
-		return "\n" + addCardStyle.Render(content) + "\n\n  " + addHintStyle.Render("press any key to exit")
+		return "\n" + addCardStyle.Render(content) + "\n\n  " + m.help.View(addDoneKeyMap{})
 
 	case stateErr:
 		content := lipgloss.JoinVertical(lipgloss.Left,
@@ -204,7 +206,7 @@ func (m AddModel) View() string {
 			"",
 			m.err.Error(),
 		)
-		return "\n" + addErrCardStyle.Render(content) + "\n\n  " + addHintStyle.Render("press any key to exit")
+		return "\n" + addErrCardStyle.Render(content) + "\n\n  " + m.help.View(addDoneKeyMap{})
 	}
 
 	return ""

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jmoiron/sqlx"
@@ -25,6 +26,8 @@ type statsErrMsg struct{ err error }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
+const statsIndent = "    "
+
 var (
 	statsSectionStyle = lipgloss.NewStyle().
 				Bold(true).
@@ -37,21 +40,17 @@ var (
 	statsMetricLabelStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("241"))
 
-	statsMetricCardStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("62")).
-				Padding(0, 2).
-				Width(18)
-
-	statsMetricCardDueStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("11")).
-				Padding(0, 2).
-				Width(18)
+	statsCardBase = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			Padding(0, 2)
 
 	statsDimStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	statsOKStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
 	statsFailStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
+
+	barEmptyColor    = lipgloss.Color("236")
+	barMasteredColor = lipgloss.Color("220")
+	barAttemptColor  = lipgloss.Color("62")
 )
 
 // ── Model ─────────────────────────────────────────────────────────────────────
@@ -67,10 +66,11 @@ type StatsTabModel struct {
 	recent   []store.RecentAttempt
 	height   int
 	db       *sqlx.DB
+	help     help.Model
 }
 
 func NewStatsTabModel(db *sqlx.DB, height int) StatsTabModel {
-	return StatsTabModel{db: db, height: height}
+	return StatsTabModel{db: db, height: height, help: newHelpModel()}
 }
 
 func (m StatsTabModel) withHeight(h int) StatsTabModel {
@@ -150,67 +150,101 @@ func (m StatsTabModel) View() string {
 
 	// ── Metric cards ─────────────────────────────────────────────────────────
 	b.WriteString("\n")
-	cards := m.renderMetricCards()
-	b.WriteString(cards)
-	b.WriteString("\n")
+	b.WriteString(m.renderMetricCards())
 
 	// ── Overall progress ─────────────────────────────────────────────────────
-	b.WriteString("\n  ")
+	b.WriteString("\n\n" + statsIndent)
 	b.WriteString(statsSectionStyle.Render("Progress"))
 	b.WriteString("\n\n")
 	if m.overview.Total > 0 {
-		b.WriteString(renderLabeledBar("  Mastered ", m.overview.Mastered, m.overview.Total, "220", 32))
+		attempted := m.overview.AttemptedOnce - m.overview.Mastered
+		if attempted < 0 {
+			attempted = 0
+		}
+		remaining := m.overview.Total - m.overview.Mastered - attempted
+		if remaining < 0 {
+			remaining = 0
+		}
+		bar := renderSegmentedBar(m.overview.Total, 40,
+			barSegment{value: m.overview.Mastered, color: barMasteredColor},
+			barSegment{value: attempted, color: barAttemptColor},
+		)
+		b.WriteString(statsIndent + bar + "\n\n")
+		b.WriteString(statsIndent)
+		b.WriteString(renderLegendDot(barMasteredColor) + " " + statsDimStyle.Render(fmt.Sprintf("mastered %d", m.overview.Mastered)))
+		b.WriteString("   ")
+		b.WriteString(renderLegendDot(barAttemptColor) + " " + statsDimStyle.Render(fmt.Sprintf("attempted %d", attempted)))
+		b.WriteString("   ")
+		b.WriteString(renderLegendDot(barEmptyColor) + " " + statsDimStyle.Render(fmt.Sprintf("remaining %d", remaining)))
 		b.WriteString("\n")
-		b.WriteString(renderLabeledBar("  Attempted", m.overview.AttemptedOnce, m.overview.Total, "62", 32))
-		b.WriteString("\n")
-		b.WriteString(renderLabeledBar("  Untouched", m.overview.Untouched, m.overview.Total, "241", 32))
 	}
 
 	// ── By difficulty ─────────────────────────────────────────────────────────
 	if len(m.diff) > 0 {
-		b.WriteString("\n\n  ")
+		b.WriteString("\n" + statsIndent)
 		b.WriteString(statsSectionStyle.Render("By Difficulty"))
 		b.WriteString("\n\n")
 		for _, d := range m.diff {
-			color := diffBarColor(d.Difficulty)
-			label := fmt.Sprintf("  %-6s", d.Difficulty)
-			suffix := fmt.Sprintf("  %d/%d   mastered %d", d.Attempted, d.Total, d.Mastered)
-			b.WriteString(label + renderBar(float64(d.Attempted)/safeDiv(d.Total), 28, color) + statsDimStyle.Render(suffix))
+			label := fmt.Sprintf("%-8s", d.Difficulty)
+			notMastered := d.Attempted - d.Mastered
+			if notMastered < 0 {
+				notMastered = 0
+			}
+			bar := renderSegmentedBar(d.Total, 26,
+				barSegment{value: d.Mastered, color: barMasteredColor},
+				barSegment{value: notMastered, color: barAttemptColor},
+			)
+			ratio := fmt.Sprintf("%d/%d", d.Attempted, d.Total)
+			mastered := fmt.Sprintf("mastered %d", d.Mastered)
+			b.WriteString(statsIndent + label + bar + "  " + statsDimStyle.Render(fmt.Sprintf("%-7s %s", ratio, mastered)))
 			b.WriteString("\n")
 		}
 	}
 
 	// ── Weakest topics ────────────────────────────────────────────────────────
 	if len(m.topics) > 0 {
-		b.WriteString("\n  ")
+		b.WriteString("\n" + statsIndent)
 		b.WriteString(statsSectionStyle.Render("Weakest Topics"))
-		b.WriteString("  ")
-		b.WriteString(statsDimStyle.Render("sorted by success rate ↑"))
 		b.WriteString("\n\n")
-		limit := 6
+		limit := 8
 		for i, t := range m.topics {
 			if i >= limit {
 				break
 			}
-			rateStr := "no attempts"
-			barPct := 0.0
-			if t.SuccessRate >= 0 {
-				rateStr = fmt.Sprintf("%d%%", int(t.SuccessRate*100))
-				barPct = t.SuccessRate
+			name := fmt.Sprintf("%-20s", truncate(t.Name, 20))
+
+			notMastered := t.Attempted - t.Mastered
+			if notMastered < 0 {
+				notMastered = 0
 			}
-			dueStr := ""
+			bar := renderSegmentedBar(t.Total, 28,
+				barSegment{value: t.Mastered, color: barMasteredColor},
+				barSegment{value: notMastered, color: barAttemptColor},
+			)
+
+			var rateStr string
+			if t.SuccessRate < 0 {
+				rateStr = statsDimStyle.Render("   — ")
+			} else {
+				pct := int(t.SuccessRate * 100)
+				rateStr = lipgloss.NewStyle().Foreground(rateColor(pct)).Render(fmt.Sprintf(" %3d%%", pct))
+			}
+
+			// Fixed-width ratio so the due column always aligns.
+			ratio := statsDimStyle.Render(fmt.Sprintf("  %3d/%-3d", t.Mastered, t.Total))
+
+			dueStr := "          " // 10-char placeholder keeps alignment when nothing is due
 			if t.DueToday > 0 {
-				dueStr = fmt.Sprintf("  %s", lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render(fmt.Sprintf("%d due", t.DueToday)))
+				dueStr = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render(fmt.Sprintf("%d due", t.DueToday))
 			}
-			name := fmt.Sprintf("  %-24s", truncate(t.Name, 24))
-			b.WriteString(name + renderBar(barPct, 14, "62") + "  " + statsDimStyle.Render(rateStr) + "  " + statsDimStyle.Render(fmt.Sprintf("%d/%d", t.Mastered, t.Total)) + dueStr)
-			b.WriteString("\n")
+
+			b.WriteString(statsIndent + name + "  " + bar + rateStr + ratio + dueStr + "\n")
 		}
 	}
 
 	// ── Recent attempts ───────────────────────────────────────────────────────
 	if len(m.recent) > 0 {
-		b.WriteString("\n  ")
+		b.WriteString("\n" + statsIndent)
 		b.WriteString(statsSectionStyle.Render("Recent"))
 		b.WriteString("\n\n")
 		for _, a := range m.recent {
@@ -221,8 +255,8 @@ func (m StatsTabModel) View() string {
 			diffStyle := lipgloss.NewStyle().Foreground(diffColor(a.Difficulty))
 			dur := formatDuration(time.Duration(a.DurationSec) * time.Second)
 			when := timeAgo(a.StartedAt)
-			title := fmt.Sprintf("%-30s", truncate(a.Title, 30))
-			b.WriteString(fmt.Sprintf("  %s  %s  %s  %s  %s\n",
+			title := fmt.Sprintf("%-28s", truncate(a.Title, 28))
+			b.WriteString(fmt.Sprintf(statsIndent+"%s  %s  %s  %s  %s\n",
 				icon,
 				title,
 				diffStyle.Render(fmt.Sprintf("%-6s", a.Difficulty)),
@@ -232,49 +266,94 @@ func (m StatsTabModel) View() string {
 		}
 	}
 
-	b.WriteString("\n  " + statsDimStyle.Render("r: refresh"))
-
-	return b.String()
+	content := b.String()
+	contentLines := strings.Count(content, "\n")
+	// Reserve 1 line for the help bar itself
+	pad := m.height - contentLines - 1
+	if pad < 1 {
+		pad = 1
+	}
+	return content + strings.Repeat("\n", pad) + statsIndent + m.help.View(statsKeyMap{})
 }
 
 func (m StatsTabModel) renderMetricCards() string {
-	streakLabel := "day streak"
-	if m.streak == 1 {
-		streakLabel = "day streak"
-	}
-	streakIcon := "🔥"
-	if m.streak == 0 {
-		streakIcon = "💤"
-	}
-
 	masteredPct := 0
 	if m.overview.Total > 0 {
 		masteredPct = m.overview.Mastered * 100 / m.overview.Total
 	}
 
-	card1 := statsMetricCardStyle.Render(
-		statsMetricNumStyle.Render(fmt.Sprintf("%s %d", streakIcon, m.streak)) + "\n" +
-			statsMetricLabelStyle.Render(streakLabel),
+	// Width sets content+padding width; borders add 2 more columns.
+	// Height must be uniform so JoinHorizontal doesn't pad outside the border.
+	cardW := 18
+	cardH := 3
+	card := func(borderColor lipgloss.Color) lipgloss.Style {
+		return statsCardBase.
+			Width(cardW).
+			Height(cardH).
+			BorderForeground(borderColor)
+	}
+
+	streakNum := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("208")).
+		Render(fmt.Sprintf("🔥 %d", m.streak))
+	dueNum := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11")).
+		Render(fmt.Sprintf("📅 %d", m.overview.DueToday))
+	totalNum := statsMetricNumStyle.Render(fmt.Sprintf("%d", m.overview.Total))
+	masteredNum := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")).
+		Render(fmt.Sprintf("★ %d", m.overview.Mastered))
+
+	card1 := card(lipgloss.Color("208")).Render(
+		streakNum + "\n" + statsMetricLabelStyle.Render("streak days"),
 	)
-	card2 := statsMetricCardDueStyle.Render(
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11")).Render(fmt.Sprintf("📅 %d", m.overview.DueToday)) + "\n" +
-			statsMetricLabelStyle.Render("due today"),
+	card2 := card(lipgloss.Color("11")).Render(
+		dueNum + "\n" + statsMetricLabelStyle.Render("due today"),
 	)
-	card3 := statsMetricCardStyle.Render(
-		statsMetricNumStyle.Render(fmt.Sprintf("%d", m.overview.Total)) + "\n" +
-			statsMetricLabelStyle.Render("problems"),
+	card3 := card(lipgloss.Color("62")).Render(
+		totalNum + "\n" + statsMetricLabelStyle.Render("problems"),
 	)
-	card4 := statsMetricCardStyle.Render(
-		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")).Render(fmt.Sprintf("★ %d", m.overview.Mastered)) + "\n" +
-			statsMetricLabelStyle.Render(fmt.Sprintf("mastered (%d%%)", masteredPct)),
+	card4 := card(lipgloss.Color("220")).Render(
+		masteredNum + "\n" + statsMetricLabelStyle.Render(fmt.Sprintf("mastered (%d%%)", masteredPct)),
 	)
 
-	return "  " + lipgloss.JoinHorizontal(lipgloss.Top, card1, "  ", card2, "  ", card3, "  ", card4)
+	joined := lipgloss.JoinHorizontal(lipgloss.Top, card1, card2, card3, card4)
+	return lipgloss.NewStyle().MarginLeft(4).Render(joined)
 }
 
-// ── Shared bar helpers ────────────────────────────────────────────────────────
+// ── Bar rendering ─────────────────────────────────────────────────────────────
 
-func renderBar(pct float64, width int, colorCode string) string {
+type barSegment struct {
+	value int
+	color lipgloss.Color
+}
+
+// renderSegmentedBar draws a single bar with multiple colored segments.
+// Segments are drawn left to right; remaining space uses barEmptyColor.
+func renderSegmentedBar(total, width int, segments ...barSegment) string {
+	if total == 0 {
+		return lipgloss.NewStyle().Background(barEmptyColor).Render(strings.Repeat(" ", width))
+	}
+	var b strings.Builder
+	used := 0
+	for _, seg := range segments {
+		w := int(float64(seg.value) / float64(total) * float64(width))
+		if w+used > width {
+			w = width - used
+		}
+		if w > 0 {
+			b.WriteString(lipgloss.NewStyle().Background(seg.color).Render(strings.Repeat(" ", w)))
+		}
+		used += w
+	}
+	if used < width {
+		b.WriteString(lipgloss.NewStyle().Background(barEmptyColor).Render(strings.Repeat(" ", width-used)))
+	}
+	return b.String()
+}
+
+func renderLegendDot(color lipgloss.Color) string {
+	return lipgloss.NewStyle().Background(color).Render("  ")
+}
+
+func renderBar(pct float64, width int, color lipgloss.Color) string {
 	if pct < 0 {
 		pct = 0
 	}
@@ -282,15 +361,23 @@ func renderBar(pct float64, width int, colorCode string) string {
 		pct = 1
 	}
 	filled := int(pct * float64(width))
-	bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(colorCode)).Render(bar)
+	if filled > width {
+		filled = width
+	}
+	empty := width - filled
+
+	filledStyle := lipgloss.NewStyle().Background(color)
+	emptyStyle := lipgloss.NewStyle().Background(barEmptyColor)
+
+	return filledStyle.Render(strings.Repeat(" ", filled)) +
+		emptyStyle.Render(strings.Repeat(" ", empty))
 }
 
-func renderLabeledBar(label string, value, total int, colorCode string, width int) string {
+func renderLabeledBar(label string, value, total int, color lipgloss.Color, width int) string {
 	pct := float64(value) / safeDiv(total)
-	bar := renderBar(pct, width, colorCode)
+	bar := renderBar(pct, width, color)
 	suffix := statsDimStyle.Render(fmt.Sprintf("  %d / %d", value, total))
-	return fmt.Sprintf("  %s  %s%s", label, bar, suffix)
+	return fmt.Sprintf(statsIndent+"%s  %s%s", label, bar, suffix)
 }
 
 func safeDiv(n int) float64 {
@@ -298,6 +385,19 @@ func safeDiv(n int) float64 {
 		return 1
 	}
 	return float64(n)
+}
+
+func diffLipColor(d string) lipgloss.Color {
+	switch d {
+	case "easy":
+		return lipgloss.Color("10")
+	case "medium":
+		return lipgloss.Color("11")
+	case "hard":
+		return lipgloss.Color("9")
+	default:
+		return lipgloss.Color("241")
+	}
 }
 
 func diffBarColor(d string) string {
@@ -336,8 +436,9 @@ func truncate(s string, n int) string {
 func timeAgo(ts string) string {
 	t, err := time.Parse("2006-01-02 15:04:05", ts)
 	if err != nil {
-		// try date-only
-		t, err = time.Parse("2006-01-02", ts[:10])
+		if len(ts) >= 10 {
+			t, err = time.Parse("2006-01-02", ts[:10])
+		}
 		if err != nil {
 			return ts
 		}
@@ -353,7 +454,7 @@ func timeAgo(ts string) string {
 	case diff < 48*time.Hour:
 		return "yesterday"
 	case diff < 7*24*time.Hour:
-		return fmt.Sprintf("%d days ago", int(diff.Hours()/24))
+		return fmt.Sprintf("%dd ago", int(diff.Hours()/24))
 	default:
 		return t.Format("Jan 2")
 	}

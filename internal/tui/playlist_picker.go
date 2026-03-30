@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -25,7 +26,6 @@ var (
 		"medium": lipgloss.NewStyle().Foreground(lipgloss.Color("11")),
 		"hard":   lipgloss.NewStyle().Foreground(lipgloss.Color("9")),
 	}
-	pickerHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 )
 
 // ── Model ─────────────────────────────────────────────────────────────────────
@@ -34,13 +34,14 @@ type PlaylistPickerModel struct {
 	playlistID   int
 	playlistName string
 	all          []store.SimpleProblem
-	checked      []bool  // original state from DB
-	selected     []bool  // current toggle state
-	visible      []int   // indices into all[] after filter
+	checked      []bool
+	selected     []bool
+	visible      []int
 	cursor       int
 	filterInput  textinput.Model
 	height       int
 	db           *sqlx.DB
+	help         help.Model
 }
 
 func NewPlaylistPickerModel(db *sqlx.DB, playlistID int, playlistName string, height int) PlaylistPickerModel {
@@ -55,6 +56,7 @@ func NewPlaylistPickerModel(db *sqlx.DB, playlistID int, playlistName string, he
 		playlistName: playlistName,
 		height:       height,
 		filterInput:  ti,
+		help:         newHelpModel(),
 	}
 }
 
@@ -230,7 +232,7 @@ func (m PlaylistPickerModel) View() string {
 	}
 
 	b.WriteString(fmt.Sprintf("\n  %s  %s\n",
-		pickerHelpStyle.Render("↑↓: navigate  space: toggle  enter: confirm  esc: cancel"),
+		m.help.View(pickerKeyMap{}),
 		pickerCheckedStyle.Render(fmt.Sprintf("%d selected", selectedCount)),
 	))
 

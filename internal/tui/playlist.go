@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -143,6 +144,7 @@ type PlaylistHubModel struct {
 	width     int
 	height    int
 	db        *sqlx.DB
+	help      help.Model
 }
 
 func NewPlaylistHubModel(db *sqlx.DB, activeID *int) PlaylistHubModel {
@@ -161,6 +163,7 @@ func NewPlaylistHubModel(db *sqlx.DB, activeID *int) PlaylistHubModel {
 		input:    ti,
 		width:    60,
 		height:   24,
+		help:     newHelpModel(),
 	}
 }
 
@@ -344,7 +347,6 @@ func (m *PlaylistHubModel) resizeList() {
 var (
 	hubOKStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
 	hubErrStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
-	hubHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	hubInputLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
 )
 
@@ -364,7 +366,7 @@ func (m PlaylistHubModel) View() string {
 		b.WriteString("  ")
 		b.WriteString(m.input.View())
 		b.WriteString("\n  ")
-		b.WriteString(hubHelpStyle.Render("enter to create • esc to cancel"))
+		b.WriteString(m.help.View(playlistKeyMap{creating: true}))
 		b.WriteString("\n")
 	} else {
 		if m.statusMsg != "" {
@@ -373,7 +375,7 @@ func (m PlaylistHubModel) View() string {
 			b.WriteString("\n")
 		}
 		b.WriteString("  ")
-		b.WriteString(hubHelpStyle.Render("enter: set active • a: add problems • n: new • /: filter • q: quit"))
+		b.WriteString(m.help.View(playlistKeyMap{creating: false}))
 		b.WriteString("\n")
 	}
 

@@ -27,6 +27,7 @@ type DiffStat struct {
 type TopicStat struct {
 	Name        string  `db:"name"`
 	Total       int     `db:"total"`
+	Attempted   int     `db:"attempted"`
 	Mastered    int     `db:"mastered"`
 	DueToday    int     `db:"due_today"`
 	SuccessRate float64 `db:"success_rate"` // -1 means no attempts yet
@@ -144,6 +145,7 @@ func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 		SELECT
 			t.name,
 			COUNT(DISTINCT pt.problem_id) AS total,
+			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pt.problem_id END) AS attempted,
 			COALESCE(SUM(DISTINCT CASE WHEN ps.mastered_before THEN pt.problem_id END), 0) AS mastered,
 			COUNT(DISTINCT CASE WHEN ps.next_review_date <= date('now') THEN pt.problem_id END) AS due_today,
 			COALESCE(

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jmoiron/sqlx"
@@ -53,6 +54,7 @@ type PracticeModel struct {
 	db              *sqlx.DB
 	profileDir      string
 	activePlaylistID *int
+	help            help.Model
 }
 
 func NewPracticeModel(
@@ -74,6 +76,7 @@ func NewPracticeModel(
 		ctx:             ctx,
 		cancelFn:        cancel,
 		activePlaylistID: activePlaylistID,
+		help:            newHelpModel(),
 	}
 }
 
@@ -198,7 +201,6 @@ var (
 	prHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
 	prTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15"))
 	prDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	prHintStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Italic(true)
 	prOKStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
 	prFailStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9"))
 	prCardStyle   = lipgloss.NewStyle().
@@ -238,7 +240,7 @@ func (m PracticeModel) viewWaiting() string {
 	)
 
 	return "\n" + prCardStyle.Render(content) +
-		"\n\n  " + prHintStyle.Render("submit in the browser when ready • q to quit")
+		"\n\n  " + m.help.View(practiceWaitingKeyMap{})
 }
 
 func (m PracticeModel) viewDone() string {
@@ -273,7 +275,7 @@ func (m PracticeModel) viewDone() string {
 		Width(52).
 		Render(content)
 
-	return "\n" + card + "\n\n  " + prHintStyle.Render("n / enter: next problem • q: quit")
+	return "\n" + card + "\n\n  " + m.help.View(practiceDoneKeyMap{})
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -62,6 +63,7 @@ type ProblemsTabModel struct {
 	db          *sqlx.DB
 	profileDir  string
 	activePlaylistID *int
+	help        help.Model
 }
 
 func NewProblemsTabModel(db *sqlx.DB, profileDir string, activePlaylistID *int, height int) ProblemsTabModel {
@@ -79,6 +81,7 @@ func NewProblemsTabModel(db *sqlx.DB, profileDir string, activePlaylistID *int, 
 		db:               db,
 		profileDir:       profileDir,
 		activePlaylistID: activePlaylistID,
+		help:             newHelpModel(),
 	}
 }
 
@@ -256,12 +259,7 @@ func (m ProblemsTabModel) View() string {
 	b.WriteString(m.table.View())
 	b.WriteString("\n\n  ")
 
-	// Help
-	if m.filtering {
-		b.WriteString(statsDimStyle.Render("enter/esc: done filtering"))
-	} else {
-		b.WriteString(statsDimStyle.Render("/: filter  s: sort  enter: practice  r: refresh"))
-	}
+	b.WriteString(m.help.View(problemsKeyMap{filtering: m.filtering}))
 
 	return b.String()
 }
@@ -272,7 +270,7 @@ func newProblemsTable(rows []table.Row, height int) table.Model {
 	cols := []table.Column{
 		{Title: "★", Width: 2},
 		{Title: "Title", Width: 36},
-		{Title: "Diff", Width: 8},
+		{Title: "Difficulty", Width: 8},
 		{Title: "W/L", Width: 7},
 		{Title: "Next Review", Width: 13},
 	}
