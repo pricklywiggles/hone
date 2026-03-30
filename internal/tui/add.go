@@ -32,7 +32,7 @@ type scrapeResultMsg struct {
 type scrapeErrMsg struct{ err error }
 
 // AddModel is the Bubble Tea model for the add-problem flow.
-// It runs standalone via tui.Run() or can be embedded in the stats dashboard.
+// It runs standalone via tui.Run() or can be pushed onto the router stack.
 type AddModel struct {
 	state      addState
 	input      textinput.Model
@@ -42,6 +42,7 @@ type AddModel struct {
 	db         *sqlx.DB
 	profileDir string
 	help       help.Model
+	standalone bool // true → tea.Quit to exit; false → Pop()
 }
 
 func NewAddModel(db *sqlx.DB, profileDir, initialURL string) AddModel {
@@ -60,6 +61,7 @@ func NewAddModel(db *sqlx.DB, profileDir, initialURL string) AddModel {
 		db:         db,
 		profileDir: profileDir,
 		help:       newHelpModel(),
+		standalone: true,
 	}
 	if initialURL != "" {
 		m.state = stateScraping
@@ -99,6 +101,13 @@ func (m AddModel) doScrape(rawURL string) tea.Cmd {
 	}
 }
 
+func (m AddModel) exit() tea.Cmd {
+	if m.standalone {
+		return tea.Quit
+	}
+	return Pop()
+}
+
 func (m AddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -107,7 +116,7 @@ func (m AddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case tea.KeyEsc:
 			if m.state == stateInput {
-				return m, tea.Quit
+				return m, m.exit()
 			}
 		case tea.KeyEnter:
 			if m.state == stateInput && strings.TrimSpace(m.input.Value()) != "" {
@@ -116,7 +125,10 @@ func (m AddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		default:
 			if m.state == stateDone || m.state == stateErr {
-				return m, tea.Quit
+				if m.state == stateDone && !m.standalone {
+					return m, tea.Batch(m.exit(), func() tea.Msg { return problemAddedMsg{} })
+				}
+				return m, m.exit()
 			}
 		}
 

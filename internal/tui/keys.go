@@ -22,6 +22,7 @@ type statsKeyMap struct{}
 func (statsKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "practice")),
+		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add problem")),
 		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 	}
 }
@@ -39,6 +40,7 @@ func (k problemsKeyMap) ShortHelp() []key.Binding {
 	}
 	return []key.Binding{
 		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "practice next")),
+		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add problem")),
 		key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sort")),
 		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "practice this")),
@@ -90,6 +92,7 @@ func (pickerKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑↓", "navigate")),
 		key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "toggle")),
+		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add new")),
 		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "confirm")),
 		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 	}

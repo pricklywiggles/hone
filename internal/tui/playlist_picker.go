@@ -15,6 +15,10 @@ import (
 // playlistPickerDoneMsg is sent when the user confirms their selection.
 type playlistPickerDoneMsg struct{ added, removed int }
 
+// problemAddedMsg is sent by AddModel (embedded) after a problem is saved,
+// so the picker can reload its list to include the newly added problem.
+type problemAddedMsg struct{}
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 var (
@@ -41,10 +45,11 @@ type PlaylistPickerModel struct {
 	filterInput  textinput.Model
 	height       int
 	db           *sqlx.DB
+	profileDir   string
 	help         help.Model
 }
 
-func NewPlaylistPickerModel(db *sqlx.DB, playlistID int, playlistName string, height int) PlaylistPickerModel {
+func NewPlaylistPickerModel(db *sqlx.DB, profileDir string, playlistID int, playlistName string, height int) PlaylistPickerModel {
 	ti := textinput.New()
 	ti.Placeholder = "search problems…"
 	ti.CharLimit = 80
@@ -52,6 +57,7 @@ func NewPlaylistPickerModel(db *sqlx.DB, playlistID int, playlistName string, he
 
 	return PlaylistPickerModel{
 		db:           db,
+		profileDir:   profileDir,
 		playlistID:   playlistID,
 		playlistName: playlistName,
 		height:       height,
@@ -93,6 +99,9 @@ func (m PlaylistPickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildVisible()
 		return m, nil
 
+	case problemAddedMsg:
+		return m, m.loadCmd()
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -126,6 +135,11 @@ func (m PlaylistPickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			idx := m.visible[m.cursor]
 			m.selected[idx] = !m.selected[idx]
 		}
+
+	case "a":
+		add := NewAddModel(m.db, m.profileDir, "")
+		add.standalone = false
+		return m, func() tea.Msg { return PushMsg{Model: add} }
 
 	case "enter":
 		return m, m.confirmCmd()

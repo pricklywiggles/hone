@@ -33,7 +33,7 @@ var playlistCmd = &cobra.Command{
 	Use:   "playlist",
 	Short: "Manage playlists",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		m := tui.NewPlaylistHubModel(appDB, config.ActivePlaylistID())
+		m := tui.NewPlaylistHubModel(appDB, config.BrowserProfileDir(), config.ActivePlaylistID())
 		_, err := tui.Run(m)
 		return err
 	},

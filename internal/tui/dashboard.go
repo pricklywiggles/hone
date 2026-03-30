@@ -70,7 +70,7 @@ func NewDashboardModel(db *sqlx.DB, profileDir string, filter store.PracticeFilt
 		active:     tabStats,
 		stats:      NewStatsTabModel(db, filter, contentH),
 		problems:   NewProblemsTabModel(db, profileDir, filter, contentH),
-		playlists:  NewPlaylistHubModel(db, filter.PlaylistID),
+		playlists:  NewPlaylistHubModel(db, profileDir, filter.PlaylistID),
 		topics:     NewTopicsTabModel(db, contentH),
 		db:         db,
 		profileDir: profileDir,
@@ -124,6 +124,12 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					return PushMsg{Model: NewPracticeModel(db, profileDir, problem, srsState, isDue, filter)}
 				}
+			}
+		case "a":
+			if m.active != tabPlaylists {
+				add := NewAddModel(m.db, m.profileDir, "")
+				add.standalone = false
+				return m, func() tea.Msg { return PushMsg{Model: add} }
 			}
 		case "1":
 			return m.switchTab(tabStats)

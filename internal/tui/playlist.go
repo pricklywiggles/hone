@@ -121,20 +121,21 @@ type playlistsLoadedMsg struct{ playlists []store.Playlist }
 type playlistHubErrMsg struct{ err error }
 
 type PlaylistHubModel struct {
-	state     hubState
-	playlists []store.Playlist
-	activeID  *int
-	list      list.Model
-	input     textinput.Model
-	picker    PlaylistPickerModel
-	statusMsg string
-	width     int
-	height    int
-	db        *sqlx.DB
-	help      help.Model
+	state      hubState
+	playlists  []store.Playlist
+	activeID   *int
+	list       list.Model
+	input      textinput.Model
+	picker     PlaylistPickerModel
+	statusMsg  string
+	width      int
+	height     int
+	db         *sqlx.DB
+	profileDir string
+	help       help.Model
 }
 
-func NewPlaylistHubModel(db *sqlx.DB, activeID *int) PlaylistHubModel {
+func NewPlaylistHubModel(db *sqlx.DB, profileDir string, activeID *int) PlaylistHubModel {
 	ti := textinput.New()
 	ti.Placeholder = "playlist name"
 	ti.CharLimit = 80
@@ -144,13 +145,14 @@ func NewPlaylistHubModel(db *sqlx.DB, activeID *int) PlaylistHubModel {
 	l.Title = "Playlists"
 
 	return PlaylistHubModel{
-		db:       db,
-		activeID: activeID,
-		list:     l,
-		input:    ti,
-		width:    60,
-		height:   24,
-		help:     newHelpModel(),
+		db:         db,
+		profileDir: profileDir,
+		activeID:   activeID,
+		list:       l,
+		input:      ti,
+		width:      60,
+		height:     24,
+		help:       newHelpModel(),
 	}
 }
 
@@ -280,7 +282,7 @@ func (m PlaylistHubModel) updateList(msg tea.KeyMsg) (PlaylistHubModel, tea.Cmd)
 	case "a":
 		if item, ok := m.list.SelectedItem().(playlistItem); ok {
 			m.state = hubPicker
-			m.picker = NewPlaylistPickerModel(m.db, item.playlist.ID, item.playlist.Name, m.height)
+			m.picker = NewPlaylistPickerModel(m.db, m.profileDir, item.playlist.ID, item.playlist.Name, m.height)
 			return m, m.picker.Init()
 		}
 	case "enter":
@@ -325,10 +327,8 @@ func (m PlaylistHubModel) updateCreate(msg tea.KeyMsg) (PlaylistHubModel, tea.Cm
 }
 
 func (m *PlaylistHubModel) resizeList() {
-	reserved := 4 // help line + status line + padding
-	if m.state == hubCreate {
-		reserved += 3
-	}
+	// Footer is always 3 lines: blank separator + (status or input) + help.
+	const reserved = 3
 	h := m.height - reserved
 	if h < 4 {
 		h = 4
@@ -354,7 +354,7 @@ func (m PlaylistHubModel) View() string {
 	b.WriteString("\n")
 
 	if m.state == hubCreate {
-		b.WriteString("\n  ")
+		b.WriteString("  ")
 		b.WriteString(hubInputLabelStyle.Render("New playlist:"))
 		b.WriteString("  ")
 		b.WriteString(m.input.View())
