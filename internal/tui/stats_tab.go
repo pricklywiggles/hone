@@ -20,7 +20,7 @@ type statsLoadedMsg struct {
 	diff          []store.DiffStat
 	topics        []store.TopicStat
 	recent        []store.RecentAttempt
-	playlistStats *store.PlaylistStats
+	practiceStats *store.PlaylistStats
 }
 
 type statsErrMsg struct{ err error }
@@ -65,15 +65,15 @@ type StatsTabModel struct {
 	diff          []store.DiffStat
 	topics        []store.TopicStat
 	recent        []store.RecentAttempt
-	playlistStats *store.PlaylistStats
+	practiceStats *store.PlaylistStats
 	height        int
 	db            *sqlx.DB
-	activePlaylistID *int
+	filter        store.PracticeFilter
 	help          help.Model
 }
 
-func NewStatsTabModel(db *sqlx.DB, activePlaylistID *int, height int) StatsTabModel {
-	return StatsTabModel{db: db, activePlaylistID: activePlaylistID, height: height, help: newHelpModel()}
+func NewStatsTabModel(db *sqlx.DB, filter store.PracticeFilter, height int) StatsTabModel {
+	return StatsTabModel{db: db, filter: filter, height: height, help: newHelpModel()}
 }
 
 func (m StatsTabModel) withHeight(h int) StatsTabModel {
@@ -104,13 +104,18 @@ func (m StatsTabModel) loadCmd() tea.Cmd {
 			return statsErrMsg{err}
 		}
 		var ps *store.PlaylistStats
-		if m.activePlaylistID != nil {
-			s, err := store.GetPlaylistStats(m.db, *m.activePlaylistID)
+		if m.filter.PlaylistID != nil {
+			s, err := store.GetPlaylistStats(m.db, *m.filter.PlaylistID)
+			if err == nil {
+				ps = &s
+			}
+		} else if m.filter.TopicID != nil {
+			s, err := store.GetTopicStatsById(m.db, *m.filter.TopicID)
 			if err == nil {
 				ps = &s
 			}
 		}
-		return statsLoadedMsg{overview: overview, streak: streak, diff: diff, topics: topics, recent: recent, playlistStats: ps}
+		return statsLoadedMsg{overview: overview, streak: streak, diff: diff, topics: topics, recent: recent, practiceStats: ps}
 	}
 }
 
@@ -129,7 +134,7 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diff = msg.diff
 		m.topics = msg.topics
 		m.recent = msg.recent
-		m.playlistStats = msg.playlistStats
+		m.practiceStats = msg.practiceStats
 		m.loaded = true
 		m.loading = false
 		m.err = nil
@@ -164,9 +169,9 @@ func (m StatsTabModel) View() string {
 	cards, cardsInnerWidth := m.renderMetricCards()
 	b.WriteString(cards)
 
-	// ── Active playlist ──────────────────────────────────────────────────────
-	if ps := m.playlistStats; ps != nil && ps.Total > 0 {
-		b.WriteString(m.renderPlaylistSection(ps, cardsInnerWidth))
+	// ── Active practice filter (playlist or topic) ──────────────────────────
+	if ps := m.practiceStats; ps != nil && ps.Total > 0 {
+		b.WriteString(m.renderPracticeSection(ps, cardsInnerWidth))
 	}
 
 	// ── Overall progress ─────────────────────────────────────────────────────
@@ -336,7 +341,7 @@ func (m StatsTabModel) renderMetricCards() (string, int) {
 	return lipgloss.NewStyle().MarginLeft(4).Render(joined), innerWidth
 }
 
-func (m StatsTabModel) renderPlaylistSection(ps *store.PlaylistStats, cardsWidth int) string {
+func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth int) string {
 	attempted := ps.Attempted - ps.Mastered
 	if attempted < 0 {
 		attempted = 0

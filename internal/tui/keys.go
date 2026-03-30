@@ -21,6 +21,7 @@ type statsKeyMap struct{}
 
 func (statsKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
+		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "practice")),
 		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 	}
 }
@@ -37,9 +38,10 @@ func (k problemsKeyMap) ShortHelp() []key.Binding {
 		}
 	}
 	return []key.Binding{
+		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "practice next")),
 		key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sort")),
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "practice")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "practice this")),
 		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 	}
 }
@@ -51,6 +53,9 @@ type topicsKeyMap struct{}
 
 func (topicsKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
+		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "practice")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "set topic")),
+		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sort")),
 		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 	}
 }
@@ -68,11 +73,11 @@ func (k playlistKeyMap) ShortHelp() []key.Binding {
 		}
 	}
 	return []key.Binding{
+		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "practice")),
 		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "set active")),
 		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add problems")),
 		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
 		key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
 }
 func (playlistKeyMap) FullHelp() [][]key.Binding { return nil }

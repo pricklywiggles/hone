@@ -61,11 +61,11 @@ type ProblemsTabModel struct {
 	height      int
 	db          *sqlx.DB
 	profileDir  string
-	activePlaylistID *int
+	filter store.PracticeFilter
 	help        help.Model
 }
 
-func NewProblemsTabModel(db *sqlx.DB, profileDir string, activePlaylistID *int, height int) ProblemsTabModel {
+func NewProblemsTabModel(db *sqlx.DB, profileDir string, filter store.PracticeFilter, height int) ProblemsTabModel {
 	ti := textinput.New()
 	ti.Placeholder = "filter by title…"
 	ti.CharLimit = 80
@@ -79,7 +79,7 @@ func NewProblemsTabModel(db *sqlx.DB, profileDir string, activePlaylistID *int, 
 		height:           height,
 		db:               db,
 		profileDir:       profileDir,
-		activePlaylistID: activePlaylistID,
+		filter:           filter,
 		help:             newHelpModel(),
 	}
 }
@@ -179,7 +179,7 @@ func (m ProblemsTabModel) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if row.IsOverdue {
 				isDue = true
 			}
-			practiceModel := NewPracticeModel(m.db, m.profileDir, problem, srsState, isDue, m.activePlaylistID)
+			practiceModel := NewPracticeModel(m.db, m.profileDir, problem, srsState, isDue, m.filter)
 			return PushMsg{Model: practiceModel}
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
+	"github.com/pricklywiggles/hone/internal/store"
 )
 
 type tabID int
@@ -49,31 +50,31 @@ var (
 // ── Dashboard model ───────────────────────────────────────────────────────────
 
 type DashboardModel struct {
-	active           tabID
-	stats            StatsTabModel
-	problems         ProblemsTabModel
-	playlists        PlaylistHubModel
-	topics           TopicsTabModel
-	width            int
-	height           int
-	db               *sqlx.DB
-	profileDir       string
-	activePlaylistID *int
+	active     tabID
+	stats      StatsTabModel
+	problems   ProblemsTabModel
+	playlists  PlaylistHubModel
+	topics     TopicsTabModel
+	width      int
+	height     int
+	db         *sqlx.DB
+	profileDir string
+	filter     store.PracticeFilter
 }
 
-func NewDashboardModel(db *sqlx.DB, profileDir string, activePlaylistID *int) DashboardModel {
+func NewDashboardModel(db *sqlx.DB, profileDir string, filter store.PracticeFilter) DashboardModel {
 	tabH := 3  // tab bar height (2 lines + divider)
 	contentH := 24 - tabH
 
 	return DashboardModel{
-		active:           tabStats,
-		stats:            NewStatsTabModel(db, activePlaylistID, contentH),
-		problems:         NewProblemsTabModel(db, profileDir, activePlaylistID, contentH),
-		playlists:        NewPlaylistHubModel(db, activePlaylistID),
-		topics:           NewTopicsTabModel(db, contentH),
-		db:               db,
-		profileDir:       profileDir,
-		activePlaylistID: activePlaylistID,
+		active:     tabStats,
+		stats:      NewStatsTabModel(db, filter, contentH),
+		problems:   NewProblemsTabModel(db, profileDir, filter, contentH),
+		playlists:  NewPlaylistHubModel(db, filter.PlaylistID),
+		topics:     NewTopicsTabModel(db, contentH),
+		db:         db,
+		profileDir: profileDir,
+		filter:     filter,
 	}
 }
 
@@ -111,6 +112,19 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.active != tabPlaylists || !m.playlists.isFiltering() {
 				return m, Pop()
 			}
+		case "p":
+			if m.active != tabPlaylists || !m.playlists.isFiltering() {
+				filter := m.filter
+				db := m.db
+				profileDir := m.profileDir
+				return m, func() tea.Msg {
+					problem, srsState, isDue, err := store.PickNext(db, filter)
+					if err != nil || problem == nil {
+						return nil
+					}
+					return PushMsg{Model: NewPracticeModel(db, profileDir, problem, srsState, isDue, filter)}
+				}
+			}
 		case "1":
 			return m.switchTab(tabStats)
 		case "2":
@@ -127,9 +141,12 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m DashboardModel) switchTab(t tabID) (DashboardModel, tea.Cmd) {
 	m.active = t
-	m.activePlaylistID = config.ActivePlaylistID()
-	m.problems.activePlaylistID = m.activePlaylistID
-	m.stats.activePlaylistID = m.activePlaylistID
+	m.filter = store.PracticeFilter{
+		PlaylistID: config.ActivePlaylistID(),
+		TopicID:    config.ActiveTopicID(),
+	}
+	m.problems.filter = m.filter
+	m.stats.filter = m.filter
 	var cmd tea.Cmd
 	switch t {
 	case tabStats:
@@ -211,17 +228,19 @@ func (m DashboardModel) renderTabBar() string {
 		}
 	}
 
-	// Active playlist indicator at far right
-	playlistNote := ""
-	if m.activePlaylistID != nil {
-		playlistNote = dashInactiveTabStyle.Render("● playlist active")
+	// Active filter indicator at far right
+	filterNote := ""
+	if m.filter.PlaylistID != nil {
+		filterNote = dashInactiveTabStyle.Render("● playlist active")
+	} else if m.filter.TopicID != nil {
+		filterNote = dashInactiveTabStyle.Render("● topic active")
 	}
 
 	tabRow := logo + "  " + strings.Join(parts, " ")
-	if playlistNote != "" && m.width > 60 {
-		pad := m.width - lipgloss.Width(tabRow) - lipgloss.Width(playlistNote) - 2
+	if filterNote != "" && m.width > 60 {
+		pad := m.width - lipgloss.Width(tabRow) - lipgloss.Width(filterNote) - 2
 		if pad > 0 {
-			tabRow += strings.Repeat(" ", pad) + playlistNote
+			tabRow += strings.Repeat(" ", pad) + filterNote
 		}
 	}
 
@@ -241,11 +260,4 @@ func max(a, b int) int {
 		return a
 	}
 	return b
-}
-
-// ActivePlaylistID re-reads the active playlist from config (called after playlist changes).
-func (m *DashboardModel) refreshPlaylistID() {
-	m.activePlaylistID = config.ActivePlaylistID()
-	m.problems.activePlaylistID = m.activePlaylistID
-	m.stats.activePlaylistID = m.activePlaylistID
 }

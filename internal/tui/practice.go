@@ -51,10 +51,10 @@ type PracticeModel struct {
 	nextDate        string
 	cancelFn        context.CancelFunc
 	ctx             context.Context
-	db              *sqlx.DB
-	profileDir      string
-	activePlaylistID *int
-	help            help.Model
+	db         *sqlx.DB
+	profileDir string
+	filter     store.PracticeFilter
+	help       help.Model
 }
 
 func NewPracticeModel(
@@ -63,20 +63,20 @@ func NewPracticeModel(
 	problem *store.Problem,
 	srsState *srs.ProblemSRS,
 	isDue bool,
-	activePlaylistID *int,
+	filter store.PracticeFilter,
 ) PracticeModel {
 	ctx, cancel := context.WithCancel(context.Background())
 	return PracticeModel{
-		db:              db,
-		profileDir:      profileDir,
-		problem:         problem,
-		srsState:        srsState,
-		isDue:           isDue,
-		startedAt:       time.Now(),
-		ctx:             ctx,
-		cancelFn:        cancel,
-		activePlaylistID: activePlaylistID,
-		help:            newHelpModel(),
+		db:         db,
+		profileDir: profileDir,
+		problem:    problem,
+		srsState:   srsState,
+		isDue:      isDue,
+		startedAt:  time.Now(),
+		ctx:        ctx,
+		cancelFn:   cancel,
+		filter:     filter,
+		help:       newHelpModel(),
 	}
 }
 
@@ -170,7 +170,7 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 
 func (m PracticeModel) fetchNext() tea.Cmd {
 	return func() tea.Msg {
-		problem, srsState, isDue, err := store.PickNext(m.db, m.activePlaylistID)
+		problem, srsState, isDue, err := store.PickNext(m.db, m.filter)
 		if err != nil || problem == nil {
 			return practiceNoNextMsg{}
 		}

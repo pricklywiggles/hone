@@ -25,6 +25,7 @@ type DiffStat struct {
 
 // TopicStat holds per-topic aggregate counts.
 type TopicStat struct {
+	ID          int     `db:"id"`
 	Name        string  `db:"name"`
 	Total       int     `db:"total"`
 	Attempted   int     `db:"attempted"`
@@ -81,6 +82,25 @@ func GetPlaylistStats(db *sqlx.DB, playlistID int) (PlaylistStats, error) {
 		LEFT JOIN (SELECT DISTINCT problem_id FROM attempts) a ON a.problem_id = pp.problem_id
 		WHERE pl.id = ?
 	`, playlistID).StructScan(&s)
+	return s, err
+}
+
+// GetTopicStatsById returns progress counts for a specific topic.
+func GetTopicStatsById(db *sqlx.DB, topicID int) (PlaylistStats, error) {
+	var s PlaylistStats
+	err := db.QueryRowx(`
+		SELECT
+			t.name,
+			COUNT(DISTINCT pt.problem_id) AS total,
+			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pt.problem_id END) AS attempted,
+			COALESCE(SUM(CASE WHEN ps.mastered_before = 1 THEN 1 ELSE 0 END), 0) AS mastered,
+			COUNT(DISTINCT CASE WHEN ps.next_review_date <= date('now') THEN pt.problem_id END) AS due_today
+		FROM topics t
+		JOIN problem_topics pt ON pt.topic_id = t.id
+		LEFT JOIN problem_srs ps ON ps.problem_id = pt.problem_id
+		LEFT JOIN (SELECT DISTINCT problem_id FROM attempts) a ON a.problem_id = pt.problem_id
+		WHERE t.id = ?
+	`, topicID).StructScan(&s)
 	return s, err
 }
 
@@ -171,6 +191,7 @@ func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 	var stats []TopicStat
 	err := db.Select(&stats, `
 		SELECT
+			t.id,
 			t.name,
 			COUNT(DISTINCT pt.problem_id) AS total,
 			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pt.problem_id END) AS attempted,

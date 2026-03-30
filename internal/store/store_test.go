@@ -26,7 +26,7 @@ func TestPickNext_DueFirst(t *testing.T) {
 	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now') WHERE problem_id = 2`)
 	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+1 day') WHERE problem_id = 3`)
 
-	problem, _, due, err := PickNext(d, nil)
+	problem, _, due, err := PickNext(d, PracticeFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestPickNext_UpcomingWhenNoneDue(t *testing.T) {
 	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+3 day') WHERE problem_id = 1`)
 	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+1 day') WHERE problem_id = 2`)
 
-	problem, _, due, err := PickNext(d, nil)
+	problem, _, due, err := PickNext(d, PracticeFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestPickNext_NoProblems(t *testing.T) {
 	}
 	defer d.Close()
 
-	problem, state, due, err := PickNext(d, nil)
+	problem, state, due, err := PickNext(d, PracticeFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestPickNext_PlaylistFilter(t *testing.T) {
 	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '-1 day')`)
 
 	playlistID := 1
-	problem, _, _, err := PickNext(d, &playlistID)
+	problem, _, _, err := PickNext(d, PracticeFilter{PlaylistID: &playlistID})
 	if err != nil {
 		t.Fatal(err)
 	}

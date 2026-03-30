@@ -64,25 +64,31 @@ const pickCols = `
 	ps.problem_id, ps.easiness_factor, ps.interval_days, ps.repetition_count,
 	ps.next_review_date, ps.mastered_before`
 
+// PracticeFilter holds the optional playlist or topic filter for picking problems.
+type PracticeFilter struct {
+	PlaylistID *int
+	TopicID    *int
+}
+
 // PickNext returns the next problem to practice.
-// If a playlistID is provided, candidates are filtered to that playlist.
+// The filter restricts candidates to a playlist or topic if set.
 // The bool return indicates whether the problem is due today (true) or upcoming (false).
 // Returns nil, nil, false, nil when no problems exist.
-func PickNext(db *sqlx.DB, playlistID *int) (*Problem, *srs.ProblemSRS, bool, error) {
-	playlistJoin, playlistArg := playlistClause(playlistID)
+func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bool, error) {
+	filterJoin, filterArgs := filterClauses(filter)
 
 	// Try due problems first (most overdue first).
 	dueQuery := `
 		SELECT` + pickCols + `
 		FROM problems p
 		JOIN problem_srs ps ON ps.problem_id = p.id` +
-		playlistJoin + `
+		filterJoin + `
 		WHERE ps.next_review_date <= date('now')
 		ORDER BY ps.next_review_date ASC
 		LIMIT 1`
 
 	var row pickRow
-	err := queryRow(db, &row, dueQuery, playlistID, playlistArg)
+	err := db.Get(&row, dueQuery, filterArgs...)
 	if err == nil {
 		return row.problem(), row.srsState(), true, nil
 	}
@@ -95,12 +101,12 @@ func PickNext(db *sqlx.DB, playlistID *int) (*Problem, *srs.ProblemSRS, bool, er
 		SELECT` + pickCols + `
 		FROM problems p
 		JOIN problem_srs ps ON ps.problem_id = p.id` +
-		playlistJoin + `
+		filterJoin + `
 		WHERE ps.next_review_date > date('now')
 		ORDER BY ps.next_review_date ASC
 		LIMIT 1`
 
-	err = queryRow(db, &row, upcomingQuery, playlistID, playlistArg)
+	err = db.Get(&row, upcomingQuery, filterArgs...)
 	if err == nil {
 		return row.problem(), row.srsState(), false, nil
 	}
@@ -158,17 +164,16 @@ func SaveSRSState(db *sqlx.DB, state srs.ProblemSRS) error {
 	return err
 }
 
-func playlistClause(playlistID *int) (string, interface{}) {
-	if playlistID == nil {
-		return "", nil
+func filterClauses(f PracticeFilter) (string, []interface{}) {
+	var join string
+	var args []interface{}
+	if f.PlaylistID != nil {
+		join += " JOIN playlist_problems pp ON pp.problem_id = p.id AND pp.playlist_id = ?"
+		args = append(args, *f.PlaylistID)
 	}
-	return " JOIN playlist_problems pp ON pp.problem_id = p.id AND pp.playlist_id = ?", *playlistID
-}
-
-// queryRow executes a Get query, passing the playlist arg only when set.
-func queryRow(db *sqlx.DB, dest interface{}, query string, playlistID *int, playlistArg interface{}) error {
-	if playlistID != nil {
-		return db.Get(dest, query, playlistArg)
+	if f.TopicID != nil {
+		join += " JOIN problem_topics pt ON pt.problem_id = p.id AND pt.topic_id = ?"
+		args = append(args, *f.TopicID)
 	}
-	return db.Get(dest, query)
+	return join, args
 }

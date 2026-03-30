@@ -22,8 +22,8 @@ To reset the database: `rm ~/.local/share/hone/data.db` (recreated on next run).
 - **modernc.org/sqlite** (no CGO) + **sqlx** — database
 - **goose/v3** with `//go:embed` — migrations bundled in binary
 - **cobra** / **viper** — CLI and config
-- **bubbletea** / **bubbles** / **lipgloss** / **huh** — TUI (not yet wired up)
-- **go-rod/rod** — browser automation (not yet wired up)
+- **bubbletea** / **bubbles** / **lipgloss** / **huh** — TUI
+- **go-rod/rod** — browser automation (headful for practice, headless for scraping)
 
 ---
 
@@ -63,7 +63,7 @@ Running the CLI with no arguments opens the **statistics dashboard** as the land
 - **Attempts** — id, problem_id, started_at, completed_at, result (success/fail), duration_seconds, quality (int, 1–5)
 - **ProblemSRS** — problem_id, easiness_factor (float, default 2.5), interval_days (int, default 1), repetition_count (int, consecutive successes), next_review_date (date), mastered_before (bool, default false)
 
-An active playlist selection is stored in config. Topics function like automatic playlists but are distinct because they appear in statistical breakdowns.
+An active playlist OR active topic is stored in config (`active_playlist_id` / `active_topic_id`). The two are **mutually exclusive**: `config.SetActivePlaylist` clears `active_topic_id` and vice versa. The unified `store.PracticeFilter{PlaylistID *int, TopicID *int}` struct is threaded through the app; `store.PickNext` and stats queries apply whichever field is non-nil.
 
 ## Picker Algorithm (SM-2 Based Spaced Repetition)
 

@@ -32,21 +32,8 @@ func (i playlistItem) Description() string {
 
 func (i playlistItem) FilterValue() string { return i.playlist.Name }
 
-// noneItem is the "None (all problems)" sentinel at the top of the list.
-type noneItem struct{ active bool }
-
-func (i noneItem) Title() string       { return "None (all problems)" }
-func (i noneItem) Description() string {
-	if i.active {
-		return "● active · practice from the full problem set"
-	}
-	return "practice from the full problem set"
-}
-func (i noneItem) FilterValue() string { return "none all problems" }
-
 func makePlaylistItems(playlists []store.Playlist, activeID *int) []list.Item {
-	items := make([]list.Item, 0, len(playlists)+1)
-	items = append(items, noneItem{active: activeID == nil})
+	items := make([]list.Item, 0, len(playlists))
 	for _, p := range playlists {
 		active := activeID != nil && *activeID == p.ID
 		items = append(items, playlistItem{playlist: p, active: active})
@@ -216,7 +203,13 @@ func (m PlaylistHubModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case playlistsLoadedMsg:
 		m.playlists = msg.playlists
+		m.activeID = config.ActivePlaylistID()
 		m.list.SetItems(makePlaylistItems(m.playlists, m.activeID))
+		if m.activeID == nil {
+			m.list.Title = "Playlists · none active"
+		} else {
+			m.list.Title = "Playlists"
+		}
 		m.resizeList()
 		return m, nil
 
@@ -291,13 +284,13 @@ func (m PlaylistHubModel) updateList(msg tea.KeyMsg) (PlaylistHubModel, tea.Cmd)
 			return m, m.picker.Init()
 		}
 	case "enter":
-		switch item := m.list.SelectedItem().(type) {
-		case noneItem:
-			m.activeID = nil
-			m.statusMsg = hubOKStyle.Render("✓ Playlist cleared — using all problems")
-			return m, clearActivePlaylist(m.db)
-		case playlistItem:
+		if item, ok := m.list.SelectedItem().(playlistItem); ok {
 			id := item.playlist.ID
+			if m.activeID != nil && *m.activeID == id {
+				m.activeID = nil
+				m.statusMsg = hubOKStyle.Render("✓ Playlist cleared — using all problems")
+				return m, clearActivePlaylist(m.db)
+			}
 			m.activeID = &id
 			m.statusMsg = hubOKStyle.Render(fmt.Sprintf("✓ Active playlist set to %q", item.playlist.Name))
 			return m, activatePlaylist(m.db, id)

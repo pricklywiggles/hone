@@ -7,6 +7,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/db"
+	"github.com/pricklywiggles/hone/internal/store"
 	"github.com/pricklywiggles/hone/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -34,7 +35,11 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		dashboard := tui.NewDashboardModel(appDB, config.BrowserProfileDir(), config.ActivePlaylistID())
+		filter := store.PracticeFilter{
+			PlaylistID: config.ActivePlaylistID(),
+			TopicID:    config.ActiveTopicID(),
+		}
+		dashboard := tui.NewDashboardModel(appDB, config.BrowserProfileDir(), filter)
 		router := tui.NewRouter(dashboard)
 		_, err := tui.Run(router)
 		return err

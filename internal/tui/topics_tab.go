@@ -2,34 +2,100 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jmoiron/sqlx"
+	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/store"
 )
+
+// ── Sort modes ────────────────────────────────────────────────────────────────
+
+type topicSortMode int
+
+const (
+	topicSortAlpha    topicSortMode = iota // default: alphabetical
+	topicSortMastered                      // % mastered descending
+	topicSortWeakest                       // weakest success rate first
+)
+
+func (s topicSortMode) label() string {
+	switch s {
+	case topicSortMastered:
+		return "% mastered"
+	case topicSortWeakest:
+		return "weakest first"
+	default:
+		return "alphabetical"
+	}
+}
 
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 type topicsLoadedMsg struct{ rows []store.TopicStat }
 type topicsErrMsg struct{ err error }
+type topicSetMsg struct{ name string }
+type topicClearedMsg struct{}
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 type TopicsTabModel struct {
-	table  colorTable
-	rows   []store.TopicStat
-	loaded bool
-	height int
-	db     *sqlx.DB
-	help   help.Model
+	table         colorTable
+	rows          []store.TopicStat
+	sorted        []store.TopicStat
+	sort          topicSortMode
+	loaded        bool
+	height        int
+	db            *sqlx.DB
+	activeTopicID *int
+	statusMsg     string
+	help          help.Model
 }
 
 func NewTopicsTabModel(db *sqlx.DB, height int) TopicsTabModel {
 	t := newTopicsTable(nil, topicsBodyHeight(height))
-	return TopicsTabModel{table: t, db: db, height: height, help: newHelpModel()}
+	return TopicsTabModel{table: t, db: db, height: height, activeTopicID: config.ActiveTopicID(), help: newHelpModel()}
+}
+
+func (m *TopicsTabModel) applySort() {
+	sorted := make([]store.TopicStat, len(m.rows))
+	copy(sorted, m.rows)
+	switch m.sort {
+	case topicSortMastered:
+		sort.SliceStable(sorted, func(i, j int) bool {
+			pi, pj := 0.0, 0.0
+			if sorted[i].Total > 0 {
+				pi = float64(sorted[i].Mastered) / float64(sorted[i].Total)
+			}
+			if sorted[j].Total > 0 {
+				pj = float64(sorted[j].Mastered) / float64(sorted[j].Total)
+			}
+			return pi > pj
+		})
+	case topicSortAlpha:
+		sort.SliceStable(sorted, func(i, j int) bool {
+			return sorted[i].Name < sorted[j].Name
+		})
+	default: // topicSortWeakest: success rate asc, unattempted last
+		sort.SliceStable(sorted, func(i, j int) bool {
+			if sorted[i].SuccessRate < 0 && sorted[j].SuccessRate < 0 {
+				return false
+			}
+			if sorted[i].SuccessRate < 0 {
+				return false
+			}
+			if sorted[j].SuccessRate < 0 {
+				return true
+			}
+			return sorted[i].SuccessRate < sorted[j].SuccessRate
+		})
+	}
+	m.sorted = sorted
+	m.table.SetRows(buildTopicRows(sorted, m.activeTopicID))
 }
 
 func topicsBodyHeight(h int) int {
@@ -57,6 +123,7 @@ func (m TopicsTabModel) loadCmd() tea.Cmd {
 }
 
 func (m TopicsTabModel) activated() (TopicsTabModel, tea.Cmd) {
+	m.activeTopicID = config.ActiveTopicID()
 	return m, m.loadCmd()
 }
 
@@ -66,7 +133,7 @@ func (m TopicsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case topicsLoadedMsg:
 		m.rows = msg.rows
-		m.table.SetRows(buildTopicRows(msg.rows))
+		m.applySort()
 		m.loaded = true
 		return m, nil
 
@@ -74,9 +141,41 @@ func (m TopicsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loaded = true
 		return m, nil
 
+	case topicSetMsg:
+		m.statusMsg = hubOKStyle.Render(fmt.Sprintf("✓ Practicing topic %q", msg.name))
+		m.applySort()
+		return m, nil
+
+	case topicClearedMsg:
+		m.statusMsg = hubOKStyle.Render("✓ Topic filter cleared")
+		m.applySort()
+		return m, nil
+
 	case tea.KeyMsg:
-		if msg.String() == "r" {
+		switch msg.String() {
+		case "r":
 			return m, m.loadCmd()
+		case "s":
+			m.sort = (m.sort + 1) % 3
+			m.applySort()
+			return m, nil
+		case "enter":
+			if idx := m.table.cursor; idx >= 0 && idx < len(m.sorted) {
+				topic := m.sorted[idx]
+				if m.activeTopicID != nil && *m.activeTopicID == topic.ID {
+					m.activeTopicID = nil
+					return m, func() tea.Msg {
+						_ = config.ClearActiveTopic()
+						return topicClearedMsg{}
+					}
+				}
+				id := topic.ID
+				m.activeTopicID = &id
+				return m, func() tea.Msg {
+					_ = config.SetActiveTopic(topic.ID)
+					return topicSetMsg{name: topic.Name}
+				}
+			}
 		}
 	}
 
@@ -93,9 +192,16 @@ func (m TopicsTabModel) View() string {
 	var b strings.Builder
 	b.WriteString("\n  ")
 	b.WriteString(statsSectionStyle.Render(fmt.Sprintf("%d topics", len(m.rows))))
+	b.WriteString("  " + statsDimStyle.Render("sorted by "+m.sort.label()))
 	b.WriteString("\n\n")
 	b.WriteString(m.table.View())
-	b.WriteString("\n\n  ")
+	b.WriteString("\n")
+	if m.statusMsg != "" {
+		b.WriteString("  " + m.statusMsg + "\n")
+	} else {
+		b.WriteString("\n")
+	}
+	b.WriteString("  ")
 	b.WriteString(m.help.View(topicsKeyMap{}))
 	return b.String()
 }
@@ -113,7 +219,7 @@ func newTopicsTable(_ [][]string, height int) colorTable {
 	}, height)
 }
 
-func buildTopicRows(rows []store.TopicStat) [][]string {
+func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 	out := make([][]string, len(rows))
 	for i, r := range rows {
 		notMastered := r.Attempted - r.Mastered
@@ -136,8 +242,12 @@ func buildTopicRows(rows []store.TopicStat) [][]string {
 			dueStr = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render(fmt.Sprintf("%d", r.DueToday))
 		}
 
+		name := r.Name
+		if activeTopicID != nil && *activeTopicID == r.ID {
+			name = "* " + name
+		}
 		out[i] = []string{
-			truncate(r.Name, 22),
+			truncate(name, 22),
 			bar,
 			fmt.Sprintf("%d", r.Total),
 			fmt.Sprintf("%d", r.Mastered),

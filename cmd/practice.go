@@ -18,7 +18,11 @@ var practiceCmd = &cobra.Command{
 	Use:   "practice",
 	Short: "Pick and launch the next problem",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		problem, srsState, isDue, err := store.PickNext(appDB, config.ActivePlaylistID())
+		filter := store.PracticeFilter{
+			PlaylistID: config.ActivePlaylistID(),
+			TopicID:    config.ActiveTopicID(),
+		}
+		problem, srsState, isDue, err := store.PickNext(appDB, filter)
 		if err != nil {
 			return err
 		}
@@ -27,7 +31,7 @@ var practiceCmd = &cobra.Command{
 			return nil
 		}
 
-		m := tui.NewPracticeModel(appDB, config.BrowserProfileDir(), problem, srsState, isDue, config.ActivePlaylistID())
+		m := tui.NewPracticeModel(appDB, config.BrowserProfileDir(), problem, srsState, isDue, filter)
 		router := tui.NewRouter(m)
 		_, err = tui.Run(router)
 		return err
