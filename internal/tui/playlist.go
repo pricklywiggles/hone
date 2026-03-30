@@ -20,15 +20,13 @@ type playlistItem struct {
 	active   bool
 }
 
-func (i playlistItem) Title() string {
-	if i.active {
-		return "* " + i.playlist.Name
-	}
-	return "  " + i.playlist.Name
-}
+func (i playlistItem) Title() string { return i.playlist.Name }
 
 func (i playlistItem) Description() string {
-	return fmt.Sprintf("  %d problems", i.playlist.ProblemCount)
+	if i.active {
+		return fmt.Sprintf("● active · %d problems", i.playlist.ProblemCount)
+	}
+	return fmt.Sprintf("%d problems", i.playlist.ProblemCount)
 }
 
 func (i playlistItem) FilterValue() string { return i.playlist.Name }
