@@ -288,7 +288,7 @@ https://neetcode.io/problems/climbing-stairs/question
 | 3 | `hone playlist` (create, list, select) | ✅ complete |
 | 4 | `hone practice` (browser + SRS) | ✅ complete |
 | 5 | TUI dashboard (all tabs + navigation) | ✅ complete |
-| 6 | `hone import` (playlist-aware bulk import) | not started |
-| 7 | `hone export` + `hone init` (backup/restore) | not started |
-| 8 | Documentation (mkdocs site) | not started |
+| 6 | `hone import` (playlist-aware bulk import) | ✅ complete |
+| 7 | `hone export` + `hone init` (backup/restore) | ✅ complete |
+| 8 | Documentation (mkdocs site) | ✅ complete |
 | 9 | Distribution (GoReleaser + Homebrew) | not started |
