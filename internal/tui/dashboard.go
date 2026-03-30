@@ -131,6 +131,8 @@ func (m DashboardModel) switchTab(t tabID) (DashboardModel, tea.Cmd) {
 		m.stats, cmd = m.stats.activated()
 	case tabProblems:
 		m.problems, cmd = m.problems.activated()
+	case tabPlaylists:
+		cmd = loadPlaylists(m.db)
 	case tabTopics:
 		m.topics, cmd = m.topics.activated()
 	}

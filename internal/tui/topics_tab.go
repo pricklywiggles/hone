@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jmoiron/sqlx"
@@ -20,7 +19,7 @@ type topicsErrMsg struct{ err error }
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 type TopicsTabModel struct {
-	table  table.Model
+	table  colorTable
 	rows   []store.TopicStat
 	loaded bool
 	height int
@@ -34,7 +33,7 @@ func NewTopicsTabModel(db *sqlx.DB, height int) TopicsTabModel {
 }
 
 func topicsBodyHeight(h int) int {
-	reserved := 5
+	reserved := 8 // header(2) + count line(3) + help(3)
 	if h-reserved < 5 {
 		return 5
 	}
@@ -103,41 +102,19 @@ func (m TopicsTabModel) View() string {
 
 // ── Table helpers ─────────────────────────────────────────────────────────────
 
-func newTopicsTable(rows []table.Row, height int) table.Model {
-	cols := []table.Column{
-		{Title: "Topic", Width: 22},
-		{Title: "Progress", Width: 16},
-		{Title: "Problems", Width: 9},
-		{Title: "Mastered", Width: 9},
-		{Title: "Due", Width: 5},
-		{Title: "Rate", Width: 6},
-	}
-
-	t := table.New(
-		table.WithColumns(cols),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(height),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("237")).
-		BorderBottom(true).
-		Foreground(lipgloss.Color("241")).
-		Bold(false)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("62")).
-		Bold(true)
-	t.SetStyles(s)
-
-	return t
+func newTopicsTable(_ [][]string, height int) colorTable {
+	return newColorTable([]ctColumn{
+		{title: "Topic", width: 22},
+		{title: "Progress", width: 16},
+		{title: "Total", width: 6},
+		{title: "Mastered", width: 9},
+		{title: "Due", width: 5},
+		{title: "Rate", width: 6},
+	}, height)
 }
 
-func buildTopicRows(rows []store.TopicStat) []table.Row {
-	out := make([]table.Row, len(rows))
+func buildTopicRows(rows []store.TopicStat) [][]string {
+	out := make([][]string, len(rows))
 	for i, r := range rows {
 		notMastered := r.Attempted - r.Mastered
 		if notMastered < 0 {
@@ -148,10 +125,10 @@ func buildTopicRows(rows []store.TopicStat) []table.Row {
 			barSegment{value: notMastered, color: barAttemptColor},
 		)
 
-		rateStr := statsDimStyle.Render("  —")
+		rateStr := statsDimStyle.Render("—")
 		if r.SuccessRate >= 0 {
 			pct := int(r.SuccessRate * 100)
-			rateStr = lipgloss.NewStyle().Foreground(rateColor(pct)).Render(fmt.Sprintf("%3d%%", pct))
+			rateStr = lipgloss.NewStyle().Foreground(rateColor(pct)).Render(fmt.Sprintf("%d%%", pct))
 		}
 
 		dueStr := statsDimStyle.Render("—")
@@ -159,7 +136,7 @@ func buildTopicRows(rows []store.TopicStat) []table.Row {
 			dueStr = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render(fmt.Sprintf("%d", r.DueToday))
 		}
 
-		out[i] = table.Row{
+		out[i] = []string{
 			truncate(r.Name, 22),
 			bar,
 			fmt.Sprintf("%d", r.Total),

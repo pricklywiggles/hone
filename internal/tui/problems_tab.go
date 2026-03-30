@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -52,7 +51,7 @@ func (s sortMode) label() string {
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 type ProblemsTabModel struct {
-	table       table.Model
+	table       colorTable
 	allRows     []store.ProblemRow
 	filtered    []store.ProblemRow
 	filterInput textinput.Model
@@ -92,7 +91,7 @@ func (m ProblemsTabModel) withHeight(h int) ProblemsTabModel {
 }
 
 func tableBodyHeight(h int) int {
-	reserved := 6 // filter bar + help + padding
+	reserved := 8 // header(2) + count/sort(3) + help(3)
 	if h-reserved < 5 {
 		return 5
 	}
@@ -266,40 +265,18 @@ func (m ProblemsTabModel) View() string {
 
 // ── Table helpers ─────────────────────────────────────────────────────────────
 
-func newProblemsTable(rows []table.Row, height int) table.Model {
-	cols := []table.Column{
-		{Title: "★", Width: 2},
-		{Title: "Title", Width: 36},
-		{Title: "Difficulty", Width: 8},
-		{Title: "W/L", Width: 7},
-		{Title: "Next Review", Width: 13},
-	}
-
-	t := table.New(
-		table.WithColumns(cols),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(height),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("237")).
-		BorderBottom(true).
-		Foreground(lipgloss.Color("241")).
-		Bold(false)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("62")).
-		Bold(true)
-	t.SetStyles(s)
-
-	return t
+func newProblemsTable(_ [][]string, height int) colorTable {
+	return newColorTable([]ctColumn{
+		{title: "★", width: 2},
+		{title: "Title", width: 36, padRight: 2},
+		{title: "Difficulty", width: 12},
+		{title: "W/L", width: 5},
+		{title: "Next Review", width: 13},
+	}, height)
 }
 
-func buildTableRows(rows []store.ProblemRow) []table.Row {
-	out := make([]table.Row, len(rows))
+func buildTableRows(rows []store.ProblemRow) [][]string {
+	out := make([][]string, len(rows))
 	for i, r := range rows {
 		star := " "
 		if r.Mastered {
@@ -315,7 +292,7 @@ func buildTableRows(rows []store.ProblemRow) []table.Row {
 
 		next := formatNextReview(r.NextReview, r.IsOverdue)
 
-		out[i] = table.Row{star, r.Title, diff, wl, next}
+		out[i] = []string{star, r.Title, diff, wl, next}
 	}
 	return out
 }

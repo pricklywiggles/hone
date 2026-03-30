@@ -59,6 +59,10 @@ internal/tui/
 
 Save `huh` for multi-field forms (e.g. playlist creation with extra fields). Single-field inputs use `bubbles/textinput` directly.
 
+### Custom `colorTable` instead of `bubbles/table`
+
+`bubbles/table` (v1.0.0) uses `runewidth.Truncate()` internally (table.go:435) which does **not** understand ANSI escape sequences — it counts escape bytes as visible characters, causing premature truncation and column misalignment when cells contain lipgloss-styled text. `internal/tui/color_table.go` is a lightweight replacement that uses `lipgloss.Width()` (ANSI-aware) for all width calculations. Use `colorTable` for any table that needs styled cell content.
+
 ---
 
 ## Phase 1: SRS Engine (core logic, no UI)

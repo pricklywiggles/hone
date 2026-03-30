@@ -427,10 +427,22 @@ func diffColor(d string) lipgloss.Color {
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	if lipgloss.Width(s) <= n {
 		return s
 	}
-	return s[:n-1] + "…"
+	if n <= 1 {
+		return "…"
+	}
+	runes := []rune(s)
+	w := 0
+	for i, r := range runes {
+		rw := lipgloss.Width(string(r))
+		if w+rw > n-1 {
+			return string(runes[:i]) + "…"
+		}
+		w += rw
+	}
+	return s
 }
 
 func timeAgo(ts string) string {
