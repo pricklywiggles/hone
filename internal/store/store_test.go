@@ -154,7 +154,9 @@ func TestSaveSRSState(t *testing.T) {
 	}
 
 	var got srs.ProblemSRS
-	d.Get(&got, `SELECT * FROM problem_srs WHERE problem_id = 1`)
+	if err := d.Get(&got, `SELECT * FROM problem_srs WHERE problem_id = 1`); err != nil {
+		t.Fatal(err)
+	}
 
 	if got.IntervalDays != 6 {
 		t.Errorf("IntervalDays = %v, want 6", got.IntervalDays)

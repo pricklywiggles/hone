@@ -188,8 +188,8 @@ func TestUpdateSRS_MasteredBeforeBoost(t *testing.T) {
 
 	result := UpdateSRS(state, true, 5, Thresholds{Fast: 10, Normal: 20}, today)
 
-	// rep_count becomes 2 (> 1), mastered_before=1 → boost: interval = 6*2.5 rounded = 15, then *2 = 30
-	// Wait: rep=2 → interval_days = 6 (fixed for rep 2), then boost *2 = 12
+	// rep_count becomes 2 (> 1) and mastered_before=1 → boost applies
+	// rep=2 uses fixed interval of 6, then *2 boost = 12
 	if result.RepetitionCount != 2 {
 		t.Errorf("RepetitionCount = %v, want 2", result.RepetitionCount)
 	}

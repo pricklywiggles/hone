@@ -1,11 +1,15 @@
 package store
 
 import (
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/srs"
 )
+
+const datetimeFormat = "2006-01-02 15:04:05"
 
 // Problem mirrors the problems table.
 type Problem struct {
@@ -78,16 +82,11 @@ func PickNext(db *sqlx.DB, playlistID *int) (*Problem, *srs.ProblemSRS, bool, er
 		LIMIT 1`
 
 	var row pickRow
-	var err error
-	if playlistID != nil {
-		err = db.Get(&row, dueQuery, playlistArg)
-	} else {
-		err = db.Get(&row, dueQuery)
-	}
+	err := queryRow(db, &row, dueQuery, playlistID, playlistArg)
 	if err == nil {
 		return row.problem(), row.srsState(), true, nil
 	}
-	if !isNotFound(err) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, false, err
 	}
 
@@ -101,15 +100,11 @@ func PickNext(db *sqlx.DB, playlistID *int) (*Problem, *srs.ProblemSRS, bool, er
 		ORDER BY ps.next_review_date ASC
 		LIMIT 1`
 
-	if playlistID != nil {
-		err = db.Get(&row, upcomingQuery, playlistArg)
-	} else {
-		err = db.Get(&row, upcomingQuery)
-	}
+	err = queryRow(db, &row, upcomingQuery, playlistID, playlistArg)
 	if err == nil {
 		return row.problem(), row.srsState(), false, nil
 	}
-	if isNotFound(err) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, false, nil
 	}
 	return nil, nil, false, err
@@ -121,8 +116,8 @@ func RecordAttempt(db *sqlx.DB, problemID int, startedAt, completedAt time.Time,
 		INSERT INTO attempts (problem_id, started_at, completed_at, result, duration_seconds, quality)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		problemID,
-		startedAt.UTC().Format("2006-01-02 15:04:05"),
-		completedAt.UTC().Format("2006-01-02 15:04:05"),
+		startedAt.UTC().Format(datetimeFormat),
+		completedAt.UTC().Format(datetimeFormat),
 		result,
 		durationSec,
 		quality,
@@ -157,6 +152,10 @@ func playlistClause(playlistID *int) (string, interface{}) {
 	return " JOIN playlist_problems pp ON pp.problem_id = p.id AND pp.playlist_id = ?", *playlistID
 }
 
-func isNotFound(err error) bool {
-	return err != nil && err.Error() == "sql: no rows in result set"
+// queryRow executes a Get query, passing the playlist arg only when set.
+func queryRow(db *sqlx.DB, dest interface{}, query string, playlistID *int, playlistArg interface{}) error {
+	if playlistID != nil {
+		return db.Get(dest, query, playlistArg)
+	}
+	return db.Get(dest, query)
 }
