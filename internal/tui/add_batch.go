@@ -1,0 +1,224 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/jmoiron/sqlx"
+	"github.com/pricklywiggles/hone/internal/platform"
+	"github.com/pricklywiggles/hone/internal/scraper"
+	"github.com/pricklywiggles/hone/internal/store"
+)
+
+type batchItemState int
+
+const (
+	batchPending  batchItemState = iota
+	batchScraping
+	batchDone
+	batchFailed
+)
+
+type batchItem struct {
+	url   string
+	state batchItemState
+	plat  string
+	meta  scraper.ProblemMeta
+	err   error
+}
+
+type batchResultMsg struct {
+	index int
+	plat  string
+	meta  scraper.ProblemMeta
+}
+
+type batchErrMsg struct {
+	index int
+	err   error
+}
+
+type BatchAddModel struct {
+	items      []batchItem
+	current    int
+	spinner    spinner.Model
+	progress   progress.Model
+	added      int
+	skipped    int
+	failed     int
+	db         *sqlx.DB
+	profileDir string
+}
+
+func NewBatchAddModel(db *sqlx.DB, profileDir string, urls []string) BatchAddModel {
+	items := make([]batchItem, len(urls))
+	for i, u := range urls {
+		items[i] = batchItem{url: u, state: batchPending}
+	}
+	if len(items) > 0 {
+		items[0].state = batchScraping
+	}
+
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
+	prog := progress.New(progress.WithDefaultGradient())
+	prog.Width = 40
+
+	return BatchAddModel{
+		items:      items,
+		spinner:    sp,
+		progress:   prog,
+		db:         db,
+		profileDir: profileDir,
+	}
+}
+
+func (m BatchAddModel) Init() tea.Cmd {
+	if len(m.items) == 0 {
+		return tea.Quit
+	}
+	return tea.Batch(m.spinner.Tick, m.scrapeItem(0))
+}
+
+func (m BatchAddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			return m, tea.Quit
+		default:
+			if m.allDone() {
+				return m, tea.Quit
+			}
+		}
+
+	case spinner.TickMsg:
+		if m.allDone() {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case progress.FrameMsg:
+		pm, cmd := m.progress.Update(msg)
+		m.progress = pm.(progress.Model)
+		return m, cmd
+
+	case batchResultMsg:
+		m.items[msg.index].state = batchDone
+		m.items[msg.index].plat = msg.plat
+		m.items[msg.index].meta = msg.meta
+		m.added++
+		return m, m.startNext(msg.index)
+
+	case batchErrMsg:
+		m.items[msg.index].state = batchFailed
+		m.items[msg.index].err = msg.err
+		if msg.err != nil && msg.err.Error() == "already exists" {
+			m.skipped++
+		} else {
+			m.failed++
+		}
+		return m, m.startNext(msg.index)
+	}
+
+	return m, nil
+}
+
+func (m *BatchAddModel) startNext(completed int) tea.Cmd {
+	done := m.added + m.skipped + m.failed
+	total := len(m.items)
+	pct := float64(done) / float64(total)
+	progressCmd := m.progress.SetPercent(pct)
+
+	next := completed + 1
+	if next >= total {
+		return progressCmd
+	}
+	m.items[next].state = batchScraping
+	m.current = next
+	return tea.Batch(progressCmd, m.scrapeItem(next))
+}
+
+func (m BatchAddModel) allDone() bool {
+	for _, it := range m.items {
+		if it.state == batchPending || it.state == batchScraping {
+			return false
+		}
+	}
+	return true
+}
+
+func (m BatchAddModel) scrapeItem(index int) tea.Cmd {
+	return func() tea.Msg {
+		rawURL := m.items[index].url
+		plat, slug, err := platform.ParseURL(rawURL)
+		if err != nil {
+			return batchErrMsg{index: index, err: fmt.Errorf("invalid URL: %w", err)}
+		}
+		meta, err := scraper.Scrape(plat, slug, m.profileDir)
+		if err != nil {
+			return batchErrMsg{index: index, err: err}
+		}
+		_, err = store.InsertProblem(m.db, plat, slug, meta.Title, meta.Difficulty, meta.Topics)
+		if err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+				return batchErrMsg{index: index, err: fmt.Errorf("already exists")}
+			}
+			return batchErrMsg{index: index, err: fmt.Errorf("save failed: %w", err)}
+		}
+		return batchResultMsg{index: index, plat: plat, meta: meta}
+	}
+}
+
+var (
+	batchOKStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
+	batchSkipStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	batchFailStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
+	batchDimStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+)
+
+func (m BatchAddModel) View() string {
+	var b strings.Builder
+	total := len(m.items)
+
+	b.WriteString("\n  ")
+	b.WriteString(addHeaderStyle.Render(fmt.Sprintf("Adding %d problems", total)))
+	b.WriteString("\n\n  ")
+	b.WriteString(m.progress.View())
+	b.WriteString("  ")
+	b.WriteString(batchDimStyle.Render(fmt.Sprintf("%d / %d", m.added+m.skipped+m.failed, total)))
+	b.WriteString("\n\n  ")
+
+	if m.allDone() {
+		b.WriteString(batchDimStyle.Render("done"))
+	} else {
+		label := m.items[m.current].url
+		if plat, slug, err := platform.ParseURL(label); err == nil {
+			label = plat + " / " + slug
+		}
+		b.WriteString(m.spinner.View() + " " + batchDimStyle.Render(label))
+	}
+
+	b.WriteString("\n\n  ")
+	b.WriteString(batchOKStyle.Render(fmt.Sprintf("✓ %d added", m.added)))
+	b.WriteString("  ")
+	b.WriteString(batchSkipStyle.Render(fmt.Sprintf("– %d skipped", m.skipped)))
+	b.WriteString("  ")
+	b.WriteString(batchFailStyle.Render(fmt.Sprintf("✗ %d failed", m.failed)))
+
+	if m.allDone() {
+		b.WriteString("\n\n  ")
+		b.WriteString(batchDimStyle.Render("press any key to exit"))
+	}
+
+	b.WriteString("\n")
+	return b.String()
+}
