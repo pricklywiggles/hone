@@ -56,6 +56,34 @@ type ProblemRow struct {
 	IsOverdue   bool   `db:"is_overdue"`
 }
 
+// PlaylistStats holds progress counts for a specific playlist.
+type PlaylistStats struct {
+	Name      string `db:"name"`
+	Total     int    `db:"total"`
+	Attempted int    `db:"attempted"`
+	Mastered  int    `db:"mastered"`
+	DueToday  int    `db:"due_today"`
+}
+
+// GetPlaylistStats returns progress counts for a specific playlist.
+func GetPlaylistStats(db *sqlx.DB, playlistID int) (PlaylistStats, error) {
+	var s PlaylistStats
+	err := db.QueryRowx(`
+		SELECT
+			pl.name,
+			COUNT(DISTINCT pp.problem_id) AS total,
+			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pp.problem_id END) AS attempted,
+			COALESCE(SUM(CASE WHEN ps.mastered_before = 1 THEN 1 ELSE 0 END), 0) AS mastered,
+			COUNT(DISTINCT CASE WHEN ps.next_review_date <= date('now') THEN pp.problem_id END) AS due_today
+		FROM playlists pl
+		JOIN playlist_problems pp ON pp.playlist_id = pl.id
+		LEFT JOIN problem_srs ps ON ps.problem_id = pp.problem_id
+		LEFT JOIN (SELECT DISTINCT problem_id FROM attempts) a ON a.problem_id = pp.problem_id
+		WHERE pl.id = ?
+	`, playlistID).StructScan(&s)
+	return s, err
+}
+
 // GetOverviewStats returns aggregate counts across all problems.
 func GetOverviewStats(db *sqlx.DB) (OverviewStats, error) {
 	var s OverviewStats

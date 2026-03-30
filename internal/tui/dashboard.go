@@ -67,7 +67,7 @@ func NewDashboardModel(db *sqlx.DB, profileDir string, activePlaylistID *int) Da
 
 	return DashboardModel{
 		active:           tabStats,
-		stats:            NewStatsTabModel(db, contentH),
+		stats:            NewStatsTabModel(db, activePlaylistID, contentH),
 		problems:         NewProblemsTabModel(db, profileDir, activePlaylistID, contentH),
 		playlists:        NewPlaylistHubModel(db, activePlaylistID),
 		topics:           NewTopicsTabModel(db, contentH),
@@ -95,8 +95,10 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stats = m.stats.withHeight(contentH)
 		m.problems = m.problems.withHeight(contentH)
 		m.topics = m.topics.withHeight(contentH)
+		// Pass adjusted size to playlists so it doesn't overflow past the tab bar.
+		adjusted := tea.WindowSizeMsg{Width: msg.Width, Height: contentH}
 		var cmd tea.Cmd
-		pm, c := m.playlists.Update(msg)
+		pm, c := m.playlists.Update(adjusted)
 		m.playlists = pm.(PlaylistHubModel)
 		cmd = c
 		return m, cmd
@@ -125,6 +127,9 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m DashboardModel) switchTab(t tabID) (DashboardModel, tea.Cmd) {
 	m.active = t
+	m.activePlaylistID = config.ActivePlaylistID()
+	m.problems.activePlaylistID = m.activePlaylistID
+	m.stats.activePlaylistID = m.activePlaylistID
 	var cmd tea.Cmd
 	switch t {
 	case tabStats:
@@ -242,4 +247,5 @@ func max(a, b int) int {
 func (m *DashboardModel) refreshPlaylistID() {
 	m.activePlaylistID = config.ActivePlaylistID()
 	m.problems.activePlaylistID = m.activePlaylistID
+	m.stats.activePlaylistID = m.activePlaylistID
 }

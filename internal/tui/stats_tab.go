@@ -15,11 +15,12 @@ import (
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 type statsLoadedMsg struct {
-	overview store.OverviewStats
-	streak   int
-	diff     []store.DiffStat
-	topics   []store.TopicStat
-	recent   []store.RecentAttempt
+	overview      store.OverviewStats
+	streak        int
+	diff          []store.DiffStat
+	topics        []store.TopicStat
+	recent        []store.RecentAttempt
+	playlistStats *store.PlaylistStats
 }
 
 type statsErrMsg struct{ err error }
@@ -56,21 +57,23 @@ var (
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 type StatsTabModel struct {
-	loaded   bool
-	loading  bool
-	err      error
-	overview store.OverviewStats
-	streak   int
-	diff     []store.DiffStat
-	topics   []store.TopicStat
-	recent   []store.RecentAttempt
-	height   int
-	db       *sqlx.DB
-	help     help.Model
+	loaded        bool
+	loading       bool
+	err           error
+	overview      store.OverviewStats
+	streak        int
+	diff          []store.DiffStat
+	topics        []store.TopicStat
+	recent        []store.RecentAttempt
+	playlistStats *store.PlaylistStats
+	height        int
+	db            *sqlx.DB
+	activePlaylistID *int
+	help          help.Model
 }
 
-func NewStatsTabModel(db *sqlx.DB, height int) StatsTabModel {
-	return StatsTabModel{db: db, height: height, help: newHelpModel()}
+func NewStatsTabModel(db *sqlx.DB, activePlaylistID *int, height int) StatsTabModel {
+	return StatsTabModel{db: db, activePlaylistID: activePlaylistID, height: height, help: newHelpModel()}
 }
 
 func (m StatsTabModel) withHeight(h int) StatsTabModel {
@@ -100,7 +103,14 @@ func (m StatsTabModel) loadCmd() tea.Cmd {
 		if err != nil {
 			return statsErrMsg{err}
 		}
-		return statsLoadedMsg{overview: overview, streak: streak, diff: diff, topics: topics, recent: recent}
+		var ps *store.PlaylistStats
+		if m.activePlaylistID != nil {
+			s, err := store.GetPlaylistStats(m.db, *m.activePlaylistID)
+			if err == nil {
+				ps = &s
+			}
+		}
+		return statsLoadedMsg{overview: overview, streak: streak, diff: diff, topics: topics, recent: recent, playlistStats: ps}
 	}
 }
 
@@ -119,6 +129,7 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diff = msg.diff
 		m.topics = msg.topics
 		m.recent = msg.recent
+		m.playlistStats = msg.playlistStats
 		m.loaded = true
 		m.loading = false
 		m.err = nil
@@ -150,7 +161,13 @@ func (m StatsTabModel) View() string {
 
 	// ── Metric cards ─────────────────────────────────────────────────────────
 	b.WriteString("\n")
-	b.WriteString(m.renderMetricCards())
+	cards, cardsInnerWidth := m.renderMetricCards()
+	b.WriteString(cards)
+
+	// ── Active playlist ──────────────────────────────────────────────────────
+	if ps := m.playlistStats; ps != nil && ps.Total > 0 {
+		b.WriteString(m.renderPlaylistSection(ps, cardsInnerWidth))
+	}
 
 	// ── Overall progress ─────────────────────────────────────────────────────
 	b.WriteString("\n\n" + statsIndent)
@@ -276,7 +293,7 @@ func (m StatsTabModel) View() string {
 	return content + strings.Repeat("\n", pad) + statsIndent + m.help.View(statsKeyMap{})
 }
 
-func (m StatsTabModel) renderMetricCards() string {
+func (m StatsTabModel) renderMetricCards() (string, int) {
 	masteredPct := 0
 	if m.overview.Total > 0 {
 		masteredPct = m.overview.Mastered * 100 / m.overview.Total
@@ -315,7 +332,48 @@ func (m StatsTabModel) renderMetricCards() string {
 	)
 
 	joined := lipgloss.JoinHorizontal(lipgloss.Top, card1, card2, card3, card4)
-	return lipgloss.NewStyle().MarginLeft(4).Render(joined)
+	innerWidth := lipgloss.Width(joined)
+	return lipgloss.NewStyle().MarginLeft(4).Render(joined), innerWidth
+}
+
+func (m StatsTabModel) renderPlaylistSection(ps *store.PlaylistStats, cardsWidth int) string {
+	attempted := ps.Attempted - ps.Mastered
+	if attempted < 0 {
+		attempted = 0
+	}
+	remaining := ps.Total - ps.Mastered - attempted
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	// Width(cardsWidth-2) includes padding(2+2=4), so content area = cardsWidth-2-4.
+	contentW := cardsWidth - 6
+	barW := contentW - 2
+
+	var inner strings.Builder
+	inner.WriteString(statsSectionStyle.Render("Currently practicing "))
+	inner.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Render(ps.Name))
+	inner.WriteString("\n\n")
+	inner.WriteString(renderSegmentedBar(ps.Total, barW,
+		barSegment{value: ps.Mastered, color: barMasteredColor},
+		barSegment{value: attempted, color: barAttemptColor},
+	))
+
+	summary := fmt.Sprintf("  %d/%d/%d", ps.Mastered, attempted, remaining)
+	if ps.DueToday > 0 {
+		summary += fmt.Sprintf("  %d due", ps.DueToday)
+	}
+	inner.WriteString(statsDimStyle.Render(summary))
+
+	// Width includes padding but not borders; subtract 2 for left+right border.
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(1, 2).
+		Width(cardsWidth - 2).
+		Render(inner.String())
+
+	return "\n" + lipgloss.NewStyle().MarginLeft(4).Render(box)
 }
 
 // ── Bar rendering ─────────────────────────────────────────────────────────────
