@@ -20,21 +20,38 @@ func Open(dataDir string) (*sqlx.DB, error) {
 		return nil, err
 	}
 
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
-		return nil, err
-	}
-	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		db.Close()
-		return nil, err
-	}
-
-	if err := runMigrations(db.DB); err != nil {
+	if err := configure(db); err != nil {
 		db.Close()
 		return nil, err
 	}
 
 	return db, nil
+}
+
+// OpenMemory returns an in-memory SQLite DB with all migrations applied.
+// Intended for use in tests.
+func OpenMemory() (*sqlx.DB, error) {
+	db, err := sqlx.Open("sqlite", ":memory:")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := configure(db); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func configure(db *sqlx.DB) error {
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return err
+	}
+	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		return err
+	}
+	return runMigrations(db.DB)
 }
 
 func runMigrations(db *sql.DB) error {

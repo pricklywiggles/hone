@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pricklywiggles/hone/internal/srs"
 	"github.com/spf13/viper"
 )
 
@@ -43,19 +44,23 @@ func DataDir() string {
 	return filepath.Join(homeDir, ".local", "share", "hone")
 }
 
+// ThresholdsFor returns the fast/normal duration thresholds for the given
+// difficulty ("easy", "medium", "hard") from Viper config.
+func ThresholdsFor(difficulty string) srs.Thresholds {
+	return srs.Thresholds{
+		Fast:   viper.GetInt("thresholds." + difficulty + ".fast"),
+		Normal: viper.GetInt("thresholds." + difficulty + ".normal"),
+	}
+}
+
 func setDefaults() {
-	// Duration thresholds in minutes (difficulty → speed → minutes)
 	viper.SetDefault("thresholds.easy.fast", 10)
 	viper.SetDefault("thresholds.easy.normal", 20)
-	viper.SetDefault("thresholds.easy.slow", 20)
 	viper.SetDefault("thresholds.medium.fast", 15)
 	viper.SetDefault("thresholds.medium.normal", 30)
-	viper.SetDefault("thresholds.medium.slow", 30)
 	viper.SetDefault("thresholds.hard.fast", 20)
 	viper.SetDefault("thresholds.hard.normal", 40)
-	viper.SetDefault("thresholds.hard.slow", 40)
 
-	// Platform URL templates
 	viper.SetDefault("platforms.leetcode.url_template", "https://leetcode.com/problems/{{slug}}/")
 	viper.SetDefault("platforms.neetcode.url_template", "https://neetcode.io/problems/{{slug}}/question")
 }
