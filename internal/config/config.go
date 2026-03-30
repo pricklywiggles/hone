@@ -53,6 +53,24 @@ func ThresholdsFor(difficulty string) srs.Thresholds {
 	}
 }
 
+// ActivePlaylistID returns the configured active playlist ID, or nil if none set.
+func ActivePlaylistID() *int {
+	if !viper.IsSet("active_playlist_id") {
+		return nil
+	}
+	id := viper.GetInt("active_playlist_id")
+	return &id
+}
+
+// SetActivePlaylist persists the active playlist ID to the config file.
+func SetActivePlaylist(id int) error {
+	viper.Set("active_playlist_id", id)
+	if err := viper.WriteConfig(); err != nil {
+		return viper.SafeWriteConfig()
+	}
+	return nil
+}
+
 func setDefaults() {
 	viper.SetDefault("thresholds.easy.fast", 10)
 	viper.SetDefault("thresholds.easy.normal", 20)
