@@ -5,10 +5,21 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/store"
+	"github.com/pricklywiggles/hone/internal/tui"
+)
+
+var (
+	plOKStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
+	plErrStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
+	plDimStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	plNameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true)
+	plHeadStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
+	plMarkStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
 )
 
 func init() {
@@ -32,12 +43,12 @@ var playlistCreateCmd = &cobra.Command{
 		_, err := store.CreatePlaylist(appDB, name)
 		if err != nil {
 			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-				fmt.Printf("Playlist %q already exists\n", name)
+				fmt.Printf("%s Playlist %s already exists\n", plErrStyle.Render("✗"), plNameStyle.Render(name))
 				return nil
 			}
 			return err
 		}
-		fmt.Printf("Created playlist %q\n", name)
+		fmt.Printf("%s Created playlist %s\n", plOKStyle.Render("✓"), plNameStyle.Render(name))
 		return nil
 	},
 }
@@ -51,18 +62,24 @@ var playlistListCmd = &cobra.Command{
 			return err
 		}
 		if len(playlists) == 0 {
-			fmt.Println("No playlists yet.")
+			fmt.Println(plDimStyle.Render("No playlists yet."))
 			return nil
 		}
 
 		activeID := config.ActivePlaylistID()
-		fmt.Fprintf(cmd.OutOrStdout(), "  %-20s %s\n", "NAME", "PROBLEMS")
+		fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", plHeadStyle.Render(fmt.Sprintf("%-22s %s", "NAME", "PROBLEMS")))
 		for _, p := range playlists {
-			marker := "  "
 			if activeID != nil && *activeID == p.ID {
-				marker = "* "
+				marker := plMarkStyle.Render("* ")
+				name := plMarkStyle.Render(fmt.Sprintf("%-22s", p.Name))
+				count := plDimStyle.Render(fmt.Sprintf("%d", p.ProblemCount))
+				fmt.Fprintf(cmd.OutOrStdout(), "%s%s%s\n", marker, name, count)
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-22s%s\n",
+					p.Name,
+					plDimStyle.Render(fmt.Sprintf("%d", p.ProblemCount)),
+				)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s%-20s %d\n", marker, p.Name, p.ProblemCount)
 		}
 		return nil
 	},
@@ -70,22 +87,52 @@ var playlistListCmd = &cobra.Command{
 
 var playlistSelectCmd = &cobra.Command{
 	Use:   "select [name]",
-	Short: "Set the active playlist",
-	Args:  cobra.ExactArgs(1),
+	Short: "Set the active playlist (interactive if no name given)",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-		playlist, err := store.GetPlaylistByName(appDB, name)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				fmt.Printf("No playlist named %q\n", name)
-				return nil
+		// Direct selection by name.
+		if len(args) == 1 {
+			name := args[0]
+			playlist, err := store.GetPlaylistByName(appDB, name)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					fmt.Printf("%s No playlist named %s\n", plErrStyle.Render("✗"), plNameStyle.Render(name))
+					return nil
+				}
+				return err
 			}
+			if err := config.SetActivePlaylist(playlist.ID); err != nil {
+				return err
+			}
+			fmt.Printf("%s Active playlist set to %s\n", plOKStyle.Render("✓"), plNameStyle.Render(name))
+			return nil
+		}
+
+		// Interactive TUI picker.
+		playlists, err := store.ListPlaylists(appDB)
+		if err != nil {
 			return err
 		}
-		if err := config.SetActivePlaylist(playlist.ID); err != nil {
+		if len(playlists) == 0 {
+			fmt.Println(plDimStyle.Render("No playlists yet. Create one with: hone playlist create <name>"))
+			return nil
+		}
+
+		m := tui.NewPlaylistSelectModel(playlists, config.ActivePlaylistID())
+		finalModel, err := tui.Run(m)
+		if err != nil {
 			return err
 		}
-		fmt.Printf("Active playlist set to %q\n", name)
+
+		result, ok := finalModel.(tui.PlaylistSelectModel)
+		if !ok || result.Canceled() || result.Selected() == nil {
+			return nil
+		}
+		p := result.Selected()
+		if err := config.SetActivePlaylist(p.ID); err != nil {
+			return err
+		}
+		fmt.Printf("%s Active playlist set to %s\n", plOKStyle.Render("✓"), plNameStyle.Render(p.Name))
 		return nil
 	},
 }
