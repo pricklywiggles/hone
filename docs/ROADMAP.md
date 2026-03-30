@@ -29,6 +29,36 @@ Quality mapping uses two thresholds per difficulty (`fast` and `normal`). Durati
 
 The interval boost for previously-mastered problems applies when `mastered_before == true` AND `repetition_count > 1` (after incrementing on a success). This means the user has had at least two consecutive successes since coming back — clearly still knows it.
 
+### TUI layering
+
+Three tiers, chosen by command complexity:
+
+1. **Lipgloss-styled output** — commands that run and exit (e.g. `playlist list`, `playlist create`). No Bubble Tea program; just `lipgloss.NewStyle()` on printed output.
+2. **Spinner + result card** — commands with async work or optional input (e.g. `hone add`). A minimal Bubble Tea program: textinput → spinner while scraping/saving → lipgloss result card, then any-key-to-exit.
+3. **Full Bubble Tea program** — views with continuous state (e.g. `hone practice` with a live timer, `hone stats` as the navigation hub).
+
+### TUI component architecture
+
+Components live in `internal/tui/` and follow the embedded-model pattern:
+
+- Each component is a `tea.Model` with its own `Init/Update/View`.
+- Completion is signaled via typed messages (e.g. `PlaylistSelectedMsg`, `ProblemAddedMsg`) so parent models can react without coupling.
+- The same component runs standalone (wrapped by `tui.Run()`) from a Cobra command, or embedded inside the stats dashboard by routing messages to it.
+- `tui.Run(m tea.Model)` is a one-liner wrapper: `tea.NewProgram(m, tea.WithAltScreen()).Run()`.
+
+Package layout:
+
+```
+internal/tui/
+  run.go                    — Run() helper
+  add.go                    — add-problem flow (textinput → spinner → card)
+  playlist.go               — playlist flow (select list + create form)
+  stats.go                  — stats dashboard hub (embeds other components)
+  practice.go               — practice session (timer + browser result channel)
+```
+
+Save `huh` for multi-field forms (e.g. playlist creation with extra fields). Single-field inputs use `bubbles/textinput` directly.
+
 ---
 
 ## Phase 1: SRS Engine (core logic, no UI)
@@ -150,52 +180,43 @@ The interval boost for previously-mastered problems applies when `mastered_befor
 
 ---
 
-## Phase 5: TUI — Stats Dashboard & Navigation
+## Phase 5: TUI — Per-command polish + Stats Dashboard
 
-**Goal:** Replace stub output with Bubble Tea TUI. Stats dashboard is the hub; navigate to other views.
+**Goal:** Give each command a proper TUI (spinner, styled output, interactive input). Build the stats dashboard as the navigation hub that reuses these components inline.
 
 **Files:** `internal/tui/` (new package), modifications to all `cmd/*.go`
 
-### 5.1 TUI architecture (`internal/tui/`)
-- `tui.go` — main model with view routing (enum: stats, practice, add, playlists, topics)
-- `stats.go` — stats dashboard view
-- `practice.go` — practice session view (wraps Phase 4 logic)
-- `add.go` — add problem view (huh form)
-- `playlists.go` — playlist management view
-- `topics.go` — topic list/filter view
+### 5.1 `hone add` TUI (`internal/tui/add.go`)
+- State machine: `stateInput` → `stateScraping` → `stateDone` / `stateErr`
+- `stateInput`: `bubbles/textinput` for URL (skipped if URL provided as CLI arg)
+- `stateScraping`: `bubbles/spinner` + async `tea.Cmd` running scrape + DB insert
+- `stateDone`: lipgloss rounded-border card (title, difficulty colored, topics, platform)
+- `stateErr`: lipgloss error card
+- Any key exits from done/error states
 
-### 5.2 Stats dashboard
-- Total problems, due today, mastered count
-- Per-topic breakdown table (topic name, count, due, avg EF)
-- Recent attempts list
-- Keybindings: `p` practice, `a` add, `l` playlists, `t` topics, `q` quit
+### 5.2 `hone playlist` TUI (`internal/tui/playlist.go`)
+- `PlaylistSelectModel`: `bubbles/list` of playlists; active one marked with `*`
+- Emits `PlaylistSelectedMsg` / `PlaylistSelectCanceledMsg` for parent to handle
+- Runs standalone from `hone playlist select`; embeddable in stats dashboard
+- `hone playlist list` and `hone playlist create` use lipgloss-styled plain output (no BT program needed)
 
-### 5.3 Practice view
-- Problem info display
-- Timer (updates every second via `tea.Tick`)
-- Status: waiting for browser result
-- Result from Rod channel arrives via `tea.Cmd` wrapping channel receive
-- Post-result summary before returning to stats
+### 5.3 Stats dashboard (`internal/tui/stats.go`)
+- Hub model with `viewState` enum: `viewStats`, `viewAdd`, `viewSelectPlaylist`, `viewPractice`
+- Displays: total problems, due today, mastered count, per-topic table, recent attempts
+- Keybindings: `p` practice, `a` add, `l` switch playlist, `q` quit
+- Embeds `AddModel` and `PlaylistSelectModel`; routes focus and messages between them
+- `cmd/root.go` RunE launches this
 
-### 5.4 Add problem view
-- huh form: URL input field
-- Scraping spinner/status
-- Confirmation with scraped details
+### 5.4 Practice view (`internal/tui/practice.go`)
+- Problem info display + live timer (`tea.Tick` every second)
+- Browser result arrives via channel wrapped in `tea.Cmd`
+- Post-result summary before returning to stats view
 
-### 5.5 Playlists view
-- List with selection
-- Create form (huh)
-- Select active playlist
-
-### 5.6 Topics view
-- Table of topics with problem counts
-- Filter to show problems for a selected topic
-
-### 5.7 Wire commands to TUI
-- `cmd/root.go` RunE → launch TUI at stats view
+### 5.5 Wire commands
+- `cmd/root.go` RunE → launch stats dashboard
+- `cmd/add.go` → `tui.Run(tui.NewAddModel(...))`
 - `cmd/practice.go` → launch TUI at practice view
-- `cmd/add.go` → launch TUI at add view
-- etc.
+- `cmd/playlist.go select` → `tui.Run(tui.NewPlaylistSelectModel(...))`
 
 ---
 
