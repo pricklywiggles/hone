@@ -24,6 +24,26 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      - name: Import code-signing certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          CERT_FILE=$(mktemp /tmp/cert.XXXXXX.p12)
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$CERT_FILE"
+
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          KEYCHAIN_PWD=$(uuidgen)
+
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security import "$CERT_FILE" -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          rm "$CERT_FILE"
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
@@ -31,3 +51,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_NOTARIZE_TEAM_ID }}
+
+      - name: Notarize binaries
+        env:
+          APPLE_ID: ${{ secrets.MACOS_NOTARIZE_APPLE_ID }}
+          APPLE_PWD: ${{ secrets.MACOS_NOTARIZE_PWD }}
+          TEAM_ID: ${{ secrets.MACOS_NOTARIZE_TEAM_ID }}
+        run: |
+          for bin in dist/hone_darwin_*/hone; do
+            echo "Notarizing $bin..."
+            ZIP=$(mktemp /tmp/hone.XXXXXX.zip)
+            zip -j "$ZIP" "$bin"
+            xcrun notarytool submit "$ZIP" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_PWD" \
+              --team-id "$TEAM_ID" \
+              --wait
+            rm "$ZIP"
+          done
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/signing.keychain-db || true
