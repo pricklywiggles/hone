@@ -27,7 +27,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install mkdocs-material mkdocs-minify-plugin
+        run: pip install mkdocs-shadcn pymdown-extensions
 
       - name: Build docs (strict)
         run: mkdocs build --strict

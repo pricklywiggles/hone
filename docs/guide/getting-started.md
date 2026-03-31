@@ -9,21 +9,21 @@
 
 ## Installation
 
-=== "Homebrew"
+/// tab | Homebrew
+```sh
+brew install pricklywiggles/hone/hone
+```
+///
 
-    ```sh
-    brew install pricklywiggles/hone/hone
-    ```
+/// tab | From source
+Requires Go 1.21+.
 
-=== "From source"
-
-    Requires Go 1.21+.
-
-    ```sh
-    git clone https://github.com/pricklywiggles/hone
-    cd hone
-    go install .
-    ```
+```sh
+git clone https://github.com/pricklywiggles/hone
+cd hone
+go install .
+```
+///
 
 ---
 
@@ -117,3 +117,6 @@ hone auth leetcode
 ```
 
 After authenticating, practice sessions will have access to your account (required for submission detection on some platforms).
+
+!!! info "Please note:"
+    hone does **not** store or transmit any credentials. All authentication is handled exclusively through the browser, exactly as you would log in normally.

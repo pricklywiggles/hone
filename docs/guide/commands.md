@@ -112,12 +112,7 @@ hone init backup.json
 ```
 
 !!! warning
-    This command refuses to run if a database already exists at `~/.local/share/hone/data.db`. To start fresh from a backup:
-
-    ```sh
-    rm ~/.local/share/hone/data.db
-    hone init backup.json
-    ```
+    This command refuses to run if a database already exists at `~/.local/share/hone/data.db`. To start fresh from a backup, run: `rm ~/.local/share/hone/data.db && hone init backup.json`
 
 On success, prints a summary:
 

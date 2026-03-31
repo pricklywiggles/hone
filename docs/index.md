@@ -4,6 +4,13 @@
 
 hone is a macOS CLI that tracks your LeetCode and NeetCode sessions, schedules problems using the SM-2 algorithm, and keeps you practicing the right things at the right time. Open a problem in your browser, submit it, and hone records the result automatically.
 
+<br><br>
+
+<video autoplay loop muted playsinline>
+  <source src="assets/splash.webm" type="video/webm">
+  <img src="assets/splash.gif" alt="hone demo">
+</video>
+
 ---
 
 ## How it works
@@ -21,19 +28,19 @@ The **spaced repetition engine** schedules each problem based on how quickly you
 
 ## Quick start
 
-=== "Homebrew"
+/// tab | Homebrew
+```sh
+brew install pricklywiggles/hone/hone
+```
+///
 
-    ```sh
-    brew install pricklywiggles/hone/hone
-    ```
-
-=== "From source"
-
-    ```sh
-    git clone https://github.com/pricklywiggles/hone
-    cd hone
-    go install .
-    ```
+/// tab | From source
+```sh
+git clone https://github.com/pricklywiggles/hone
+cd hone
+go install .
+```
+///
 
 Then add your first problem and start practicing:
 
