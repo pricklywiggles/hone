@@ -159,7 +159,7 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 					parts := strings.Split(strings.Trim(*href, "/"), "/")
 					slug := parts[len(parts)-1]
 					if slug != "" {
-						topics = append(topics, slug)
+						topics = append(topics, strings.ReplaceAll(slug, "-", " "))
 					}
 				}
 			}
