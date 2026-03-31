@@ -28,20 +28,20 @@ type tabActivatedMsg struct{}
 var (
 	dashLogoStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("62"))
+			Foreground(colorAccent)
 
 	dashActiveTabStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(lipgloss.Color("62")).
+				Foreground(colorAccent).
 				Underline(true).
 				Padding(0, 1)
 
 	dashInactiveTabStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("241")).
+				Foreground(colorDim).
 				Padding(0, 1)
 
 	dashDividerStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("237"))
+				Foreground(colorDimBg)
 
 	dashTabBarStyle = lipgloss.NewStyle().
 			PaddingLeft(1)

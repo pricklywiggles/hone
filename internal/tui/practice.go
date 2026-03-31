@@ -198,20 +198,20 @@ func waitForResult(ctx context.Context, platform, problemURL, profileDir string)
 // ── View ──────────────────────────────────────────────────────────────────────
 
 var (
-	prHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
-	prTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15"))
-	prDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	prOKStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10"))
-	prFailStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9"))
+	prHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
+	prTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorBright)
+	prDimStyle    = lipgloss.NewStyle().Foreground(colorDim)
+	prOKStyle     = lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
+	prFailStyle   = lipgloss.NewStyle().Bold(true).Foreground(colorDanger)
 	prCardStyle   = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("62")).
+			BorderForeground(colorAccent).
 			Padding(1, 3).
 			Width(52)
 	prDiffColors = map[string]lipgloss.Color{
-		"easy":   lipgloss.Color("10"),
-		"medium": lipgloss.Color("11"),
-		"hard":   lipgloss.Color("9"),
+		"easy":   colorSuccess,
+		"medium": colorWarning,
+		"hard":   colorDanger,
 	}
 )
 
@@ -227,7 +227,7 @@ func (m PracticeModel) viewWaiting() string {
 	diffStyle := lipgloss.NewStyle().Foreground(prDiffColors[m.problem.Difficulty])
 	dueLabel := prDimStyle.Render("upcoming")
 	if m.isDue {
-		dueLabel = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render("due today")
+		dueLabel = lipgloss.NewStyle().Foreground(colorWarning).Render("due today")
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
@@ -249,10 +249,10 @@ func (m PracticeModel) viewDone() string {
 	}
 	elapsed := m.result.CompletedAt.Sub(m.startedAt)
 	verdict := prOKStyle.Render("✓ Accepted")
-	borderColor := lipgloss.Color("10")
+	borderColor := colorSuccess
 	if !m.result.Success {
 		verdict = prFailStyle.Render("✗ Wrong Answer")
-		borderColor = lipgloss.Color("9")
+		borderColor = colorDanger
 	}
 
 	nextLine := prDimStyle.Render("next review: " + m.nextDate)

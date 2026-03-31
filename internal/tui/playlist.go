@@ -44,15 +44,15 @@ func makePlaylistItems(playlists []store.Playlist, activeID *int) []list.Item {
 func newPlaylistList(items []list.Item, w, h int) list.Model {
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(lipgloss.Color("62")).
-		BorderLeftForeground(lipgloss.Color("62"))
+		Foreground(colorAccent).
+		BorderLeftForeground(colorAccent)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(lipgloss.Color("241")).
-		BorderLeftForeground(lipgloss.Color("62"))
+		Foreground(colorDim).
+		BorderLeftForeground(colorAccent)
 	l := list.New(items, delegate, w, h)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
-	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
+	l.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
 	return l
 }
 
@@ -338,9 +338,9 @@ func (m *PlaylistHubModel) resizeList() {
 
 // Styles for the hub
 var (
-	hubOKStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
-	hubErrStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
-	hubInputLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
+	hubOKStyle   = lipgloss.NewStyle().Foreground(colorSuccess).Bold(true)
+	hubErrStyle  = lipgloss.NewStyle().Foreground(colorDanger).Bold(true)
+	hubInputLabelStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 )
 
 func (m PlaylistHubModel) View() string {

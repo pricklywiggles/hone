@@ -53,7 +53,7 @@ func NewAddModel(db *sqlx.DB, profileDir, initialURL string) AddModel {
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	sp.Style = lipgloss.NewStyle().Foreground(colorAccent)
 
 	m := AddModel{
 		input:      ti,
@@ -159,23 +159,23 @@ func (m AddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // Styles
 var (
-	addHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
-	addLabelStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	addTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15"))
+	addHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
+	addLabelStyle  = lipgloss.NewStyle().Foreground(colorDim)
+	addTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorBright)
 	addCardStyle   = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("62")).
+			BorderForeground(colorAccent).
 			Padding(1, 3).
 			Width(52)
 	addErrCardStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("9")).
+			BorderForeground(colorDanger).
 			Padding(1, 3).
 			Width(52)
 	diffColors = map[string]lipgloss.Color{
-		"easy":   lipgloss.Color("10"),
-		"medium": lipgloss.Color("11"),
-		"hard":   lipgloss.Color("9"),
+		"easy":   colorSuccess,
+		"medium": colorWarning,
+		"hard":   colorDanger,
 	}
 )
 
@@ -204,7 +204,7 @@ func (m AddModel) View() string {
 			topicsStr = addLabelStyle.Render("no topics")
 		}
 		content := lipgloss.JoinVertical(lipgloss.Left,
-			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10")).Render("✓ Added"),
+			lipgloss.NewStyle().Bold(true).Foreground(colorSuccess).Render("✓ Added"),
 			"",
 			addTitleStyle.Render(r.meta.Title),
 			diffStyle.Render(r.meta.Difficulty)+"  "+addLabelStyle.Render(r.plat),
@@ -214,7 +214,7 @@ func (m AddModel) View() string {
 
 	case stateErr:
 		content := lipgloss.JoinVertical(lipgloss.Left,
-			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render("✗ Failed"),
+			lipgloss.NewStyle().Bold(true).Foreground(colorDanger).Render("✗ Failed"),
 			"",
 			m.err.Error(),
 		)

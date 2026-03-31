@@ -93,7 +93,7 @@ func NewImportModel(db *sqlx.DB, profileDir string, groups []importer.ImportGrou
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	sp.Style = lipgloss.NewStyle().Foreground(colorAccent)
 
 	prog := progress.New(progress.WithDefaultGradient())
 	prog.Width = 40

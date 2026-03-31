@@ -121,7 +121,7 @@ func (m SplashModel) renderSplash() string {
 		b.WriteByte('\n')
 	}
 
-	hint := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("press any key")
+	hint := lipgloss.NewStyle().Foreground(colorDim).Render("press any key")
 	// Fill remaining lines so the hint lands on the last row.
 	artBottom := topPad + len(m.lines)
 	blankLines := m.height - artBottom - 1

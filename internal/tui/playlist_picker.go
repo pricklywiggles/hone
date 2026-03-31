@@ -22,13 +22,13 @@ type problemAddedMsg struct{}
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 var (
-	pickerCheckedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
-	pickerUncheckedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	pickerSelectedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
+	pickerCheckedStyle   = lipgloss.NewStyle().Foreground(colorSuccess).Bold(true)
+	pickerUncheckedStyle = lipgloss.NewStyle().Foreground(colorDim)
+	pickerSelectedStyle  = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 	pickerDiffStyle      = map[string]lipgloss.Style{
-		"easy":   lipgloss.NewStyle().Foreground(lipgloss.Color("10")),
-		"medium": lipgloss.NewStyle().Foreground(lipgloss.Color("11")),
-		"hard":   lipgloss.NewStyle().Foreground(lipgloss.Color("9")),
+		"easy":   lipgloss.NewStyle().Foreground(colorSuccess),
+		"medium": lipgloss.NewStyle().Foreground(colorWarning),
+		"hard":   lipgloss.NewStyle().Foreground(colorDanger),
 	}
 )
 

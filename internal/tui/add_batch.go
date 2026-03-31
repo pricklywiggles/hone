@@ -65,7 +65,7 @@ func NewBatchAddModel(db *sqlx.DB, profileDir string, urls []string) BatchAddMod
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	sp.Style = lipgloss.NewStyle().Foreground(colorAccent)
 
 	prog := progress.New(progress.WithDefaultGradient())
 	prog.Width = 40
@@ -179,10 +179,10 @@ func (m BatchAddModel) scrapeItem(index int) tea.Cmd {
 }
 
 var (
-	batchOKStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
-	batchSkipStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
-	batchFailStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
-	batchDimStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	batchOKStyle   = lipgloss.NewStyle().Foreground(colorSuccess).Bold(true)
+	batchSkipStyle = lipgloss.NewStyle().Foreground(colorWarning)
+	batchFailStyle = lipgloss.NewStyle().Foreground(colorDanger).Bold(true)
+	batchDimStyle  = lipgloss.NewStyle().Foreground(colorDim)
 )
 
 func (m BatchAddModel) View() string {

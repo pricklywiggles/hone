@@ -239,7 +239,7 @@ func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 
 		dueStr := statsDimStyle.Render("—")
 		if r.DueToday > 0 {
-			dueStr = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render(fmt.Sprintf("%d", r.DueToday))
+			dueStr = lipgloss.NewStyle().Foreground(colorWarning).Render(fmt.Sprintf("%d", r.DueToday))
 		}
 
 		name := r.Name
@@ -261,10 +261,10 @@ func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 func rateColor(pct int) lipgloss.Color {
 	switch {
 	case pct >= 75:
-		return lipgloss.Color("10") // green
+		return colorSuccess
 	case pct >= 50:
-		return lipgloss.Color("11") // yellow
+		return colorWarning
 	default:
-		return lipgloss.Color("9") // red
+		return colorDanger
 	}
 }
