@@ -21,6 +21,7 @@ type statsKeyMap struct{}
 
 func (statsKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
+		key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "scroll")),
 		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "practice")),
 		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add problem")),
 		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
