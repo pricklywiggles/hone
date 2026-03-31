@@ -17,6 +17,14 @@ builds:
       - -X github.com/pricklywiggles/hone/cmd.Version={{.Version}}
     flags:
       - -trimpath
+    hooks:
+      post:
+        - cmd: >-
+            sh -c '[ -z "$MACOS_SIGN_IDENTITY" ] ||
+            codesign --force --options runtime
+            --sign "Developer ID Application"
+            --timestamp "{{ .Path }}"'
+          output: true
 
 archives:
   - id: hone
