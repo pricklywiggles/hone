@@ -29,9 +29,10 @@ func Monitor(ctx context.Context, platform, problemURL, profileDir string) <-cha
 }
 
 func run(ctx context.Context, platform, problemURL, profileDir string, ch chan<- Result) {
-	u := launcher.New().
+	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+	u := launcher.NewUserMode().
+		Bin(chromePath).
 		UserDataDir(profileDir).
-		Headless(false).
 		MustLaunch()
 	browser := rod.New().ControlURL(u).MustConnect().NoDefaultDevice()
 	defer browser.MustClose()

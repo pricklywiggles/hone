@@ -1,6 +1,7 @@
 package scraper
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -25,7 +26,8 @@ func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 	}
 	pageURL := strings.ReplaceAll(tmpl, "{{slug}}", slug)
 
-	u := launcher.New().UserDataDir(profileDir).Headless(true).MustLaunch()
+	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+	u := launcher.New().Bin(chromePath).UserDataDir(profileDir).Headless(true).MustLaunch()
 	browser := rod.New().ControlURL(u).MustConnect()
 	defer browser.MustClose()
 
@@ -50,47 +52,59 @@ func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 func scrapeLeetCode(page *rod.Page) (ProblemMeta, error) {
 	var meta ProblemMeta
 
-	// Title: try data-cy attribute first, fall back to h1 in the title area
-	var title string
+	// LeetCode embeds all problem data in a __NEXT_DATA__ script tag.
+	var raw string
 	if err := rod.Try(func() {
-		title = page.MustElement(`div[data-cy="question-title"]`).MustText()
+		raw = page.MustElement(`script#__NEXT_DATA__`).MustText()
 	}); err != nil {
-		if err2 := rod.Try(func() {
-			title = page.MustElement(`.mr-2.text-label-1`).MustText()
-		}); err2 != nil {
-			rod.Try(func() {
-				title = page.MustElement(`h1`).MustText()
-			})
-		}
-	}
-	meta.Title = strings.TrimSpace(title)
-
-	// Difficulty
-	for _, d := range []string{"easy", "medium", "hard"} {
-		if err := rod.Try(func() {
-			el := page.MustElement(`.text-difficulty-` + d)
-			_ = el.MustText()
-			meta.Difficulty = d
-		}); err == nil {
-			break
-		}
+		return meta, fmt.Errorf("could not find __NEXT_DATA__ on LeetCode page")
 	}
 
-	// Topics
-	var topics []string
-	rod.Try(func() {
-		els := page.MustElements(`a[href*="/tag/"]`)
-		for _, el := range els {
-			t := strings.TrimSpace(strings.ToLower(el.MustText()))
-			if t != "" {
-				topics = append(topics, t)
+	var nextData struct {
+		Props struct {
+			PageProps struct {
+				DehydratedState struct {
+					Queries []struct {
+						State struct {
+							Data struct {
+								Question struct {
+									Title      string `json:"title"`
+									Difficulty string `json:"difficulty"`
+									TopicTags  []struct {
+										Name string `json:"name"`
+									} `json:"topicTags"`
+								} `json:"question"`
+							} `json:"data"`
+						} `json:"state"`
+					} `json:"queries"`
+				} `json:"dehydratedState"`
+			} `json:"pageProps"`
+		} `json:"props"`
+	}
+
+	if err := json.Unmarshal([]byte(raw), &nextData); err != nil {
+		return meta, fmt.Errorf("failed to parse __NEXT_DATA__: %w", err)
+	}
+
+	for _, q := range nextData.Props.PageProps.DehydratedState.Queries {
+		question := q.State.Data.Question
+		if question.Title == "" {
+			continue
+		}
+		meta.Title = strings.TrimSpace(question.Title)
+		meta.Difficulty = strings.ToLower(strings.TrimSpace(question.Difficulty))
+		for _, tag := range question.TopicTags {
+			name := strings.TrimSpace(strings.ToLower(tag.Name))
+			if name != "" {
+				meta.Topics = append(meta.Topics, name)
 			}
 		}
-	})
-	meta.Topics = dedup(topics)
+		break
+	}
+	meta.Topics = dedup(meta.Topics)
 
 	if meta.Title == "" {
-		return meta, fmt.Errorf("could not extract title from LeetCode page")
+		return meta, fmt.Errorf("could not extract title from LeetCode __NEXT_DATA__")
 	}
 	return meta, nil
 }
