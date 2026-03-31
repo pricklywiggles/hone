@@ -22,7 +22,7 @@ builds:
         - cmd: >-
             sh -c '[ -z "$MACOS_SIGN_IDENTITY" ] ||
             codesign --force --options runtime
-            --sign "Developer ID Application"
+            --sign "$MACOS_SIGN_IDENTITY"
             --timestamp "{{ .Path }}"'
           output: true
 

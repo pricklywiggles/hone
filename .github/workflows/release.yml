@@ -40,7 +40,9 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
           security import "$CERT_FILE" -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          # Preserve existing keychains while adding the new one
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
 
           rm "$CERT_FILE"
 
@@ -51,7 +53,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_NOTARIZE_TEAM_ID }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+
+      - name: Verify code signatures
+        run: |
+          for bin in dist/hone_darwin_*/hone; do
+            echo "Verifying $bin..."
+            codesign --verify --deep --strict "$bin"
+            codesign -dv "$bin" 2>&1 | head -5
+            echo ""
+          done
 
       - name: Notarize binaries
         env:
@@ -61,7 +72,7 @@ jobs:
         run: |
           for bin in dist/hone_darwin_*/hone; do
             echo "Notarizing $bin..."
-            ZIP="/tmp/hone-$(basename $(dirname $bin)).zip"
+            ZIP="/tmp/hone-$(basename "$(dirname "$bin")").zip"
             rm -f "$ZIP"
             zip -j "$ZIP" "$bin"
             xcrun notarytool submit "$ZIP" \
@@ -69,7 +80,7 @@ jobs:
               --password "$APPLE_PWD" \
               --team-id "$TEAM_ID" \
               --wait
-            rm "$ZIP"
+            rm -f "$ZIP"
           done
 
       - name: Clean up keychain
