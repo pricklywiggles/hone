@@ -4,6 +4,8 @@
 
 hone is a macOS CLI that tracks your LeetCode and NeetCode sessions, schedules problems using the SM-2 algorithm, and keeps you practicing the right things at the right time. Open a problem in your browser, submit it, and hone records the result automatically.
 
+<br><br>
+
 <video autoplay loop muted playsinline>
   <source src="assets/splash.webm" type="video/webm">
   <img src="assets/splash.gif" alt="hone demo">

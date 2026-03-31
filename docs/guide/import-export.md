@@ -122,12 +122,9 @@ hone init backup.json
 ```
 
 !!! warning "Database must not exist"
-    `hone init` refuses to run if `~/.local/share/hone/data.db` already exists, to prevent accidental data loss. To restore onto a clean install:
+    `hone init` refuses to run if `~/.local/share/hone/data.db` already exists, to prevent accidental data loss. Delete the database first, then restore:
 
-    ```sh
-    rm ~/.local/share/hone/data.db
-    hone init backup.json
-    ```
+`rm ~/.local/share/hone/data.db && hone init backup.json`
 
 ---
 
