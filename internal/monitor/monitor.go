@@ -29,9 +29,10 @@ func Monitor(ctx context.Context, platform, problemURL, profileDir string) <-cha
 }
 
 func run(ctx context.Context, platform, problemURL, profileDir string, ch chan<- Result) {
-	u := launcher.New().
+	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+	u := launcher.NewUserMode().
+		Bin(chromePath).
 		UserDataDir(profileDir).
-		Headless(false).
 		MustLaunch()
 	browser := rod.New().ControlURL(u).MustConnect().NoDefaultDevice()
 	defer browser.MustClose()
@@ -88,7 +89,7 @@ func detectorFor(platform string) detector {
 func resultIndicatorText(page *rod.Page, platform string) string {
 	switch platform {
 	case "leetcode":
-		return elementExists(page, leetcodeSuccess, leetcodeFailure)
+		return textOf(page, leetcodeResult...)
 	default:
 		return elementExists(page, neetcodeSuccess, neetcodeFailure)
 	}
@@ -115,16 +116,21 @@ func detectNeetCode(page *rod.Page) (bool, bool) {
 
 // ── LeetCode ─────────────────────────────────────────────────────────────────
 //
-// Tune these selectors after inspecting the live DOM on LeetCode.
-var leetcodeSuccess = []string{"[data-e2e-locator='submission-result']"}
-var leetcodeFailure = []string{".result-state--error", ".result-state--fail"}
+// Result heading is an h3 with text-green-60 (success) or text-red-60 (failure).
+// Failure text varies: "Wrong Answer", "Runtime Error", "Time Limit Exceeded", etc.
+var leetcodeResult = []string{
+	"h3.text-green-60",
+	"h3.text-red-60",
+	"[data-e2e-locator='submission-result']",
+	"[data-e2e-locator='console-result']",
+}
 
 func detectLeetCode(page *rod.Page) (bool, bool) {
-	text := strings.ToLower(textOf(page, leetcodeSuccess...))
+	text := strings.ToLower(textOf(page, leetcodeResult...))
 	if strings.Contains(text, "accepted") {
 		return true, true
 	}
-	if elementPresent(page, leetcodeFailure...) {
+	if text != "" {
 		return false, true
 	}
 	return false, false

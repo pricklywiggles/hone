@@ -3,7 +3,7 @@
 ## Requirements
 
 - macOS (arm64 or amd64)
-- Chrome or Chromium installed (used for browser automation during practice sessions)
+- Google Chrome installed (used for browser automation during practice sessions)
 
 ---
 
@@ -109,10 +109,10 @@ Press `p` from any tab to start a practice session using the active filter.
 
 ## Logging in to problem sites
 
-The Chrome profile is reused across sessions, so you only need to log in once:
+The Chrome profile is reused across sessions, so you only need to log in once. Close Google Chrome before running auth:
 
 ```sh
-hone auth neetcode   # opens a browser window — log in, then close
+hone auth neetcode   # opens a browser window — log in, then press Enter
 hone auth leetcode
 ```
 
