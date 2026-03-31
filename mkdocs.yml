@@ -27,8 +27,8 @@ markdown_extensions:
   - def_list
 
 nav:
-  - Home: index.md
   - User Guide:
+    - Home: index.md
     - Getting Started: guide/getting-started.md
     - Commands Reference: guide/commands.md
     - Dashboard Guide: guide/dashboard.md
