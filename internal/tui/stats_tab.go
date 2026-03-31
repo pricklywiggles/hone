@@ -99,7 +99,7 @@ func (m StatsTabModel) loadCmd() tea.Cmd {
 		if err != nil {
 			return statsErrMsg{err}
 		}
-		recent, err := store.GetRecentAttempts(m.db, 8)
+		recent, err := store.GetRecentAttempts(m.db, 6)
 		if err != nil {
 			return statsErrMsg{err}
 		}
@@ -228,7 +228,7 @@ func (m StatsTabModel) View() string {
 		b.WriteString("\n" + statsIndent)
 		b.WriteString(statsSectionStyle.Render("Weakest Topics"))
 		b.WriteString("\n\n")
-		limit := 8
+		limit := 6
 		for i, t := range m.topics {
 			if i >= limit {
 				break
