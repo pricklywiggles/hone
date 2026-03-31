@@ -232,14 +232,45 @@ func (m StatsTabModel) View() string {
 		end = len(lines)
 	}
 	visible := lines[offset:end]
-	visibleStr := strings.Join(visible, "\n")
 
-	visibleLines := strings.Count(visibleStr, "\n")
-	pad := viewportH - visibleLines - 1
-	if pad < 0 {
-		pad = 0
+	// Pad to fill viewport height
+	for len(visible) < viewportH {
+		visible = append(visible, "")
 	}
-	innerContent := visibleStr + strings.Repeat("\n", pad)
+
+	// Scrollbar: only show when content overflows
+	showScrollbar := scrollMax > 0
+	if showScrollbar {
+		totalLines := len(lines)
+		thumbSize := viewportH * viewportH / totalLines
+		if thumbSize < 1 {
+			thumbSize = 1
+		}
+		thumbPos := 0
+		if scrollMax > 0 {
+			thumbPos = offset * (viewportH - thumbSize) / scrollMax
+		}
+
+		track := lipgloss.NewStyle().Foreground(colorDimBg).Render("│")
+		thumb := lipgloss.NewStyle().Foreground(colorDim).Render("█")
+
+		// Content width inside the box (box width minus padding 2*2 minus scrollbar gap)
+		contentW := cardsWidth - 2 - 4 - 2
+		for i, line := range visible {
+			lineW := lipgloss.Width(line)
+			gap := contentW - lineW
+			if gap < 0 {
+				gap = 0
+			}
+			indicator := track
+			if i >= thumbPos && i < thumbPos+thumbSize {
+				indicator = thumb
+			}
+			visible[i] = line + strings.Repeat(" ", gap) + " " + indicator
+		}
+	}
+
+	innerContent := strings.Join(visible, "\n")
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
