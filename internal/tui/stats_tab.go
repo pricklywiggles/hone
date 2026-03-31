@@ -32,26 +32,26 @@ const statsIndent = "    "
 var (
 	statsSectionStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(lipgloss.Color("62"))
+				Foreground(colorAccent)
 
 	statsMetricNumStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(lipgloss.Color("15"))
+				Foreground(colorBright)
 
 	statsMetricLabelStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("241"))
+				Foreground(colorDim)
 
 	statsCardBase = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			Padding(0, 2)
 
-	statsDimStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	statsOKStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
-	statsFailStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
+	statsDimStyle  = lipgloss.NewStyle().Foreground(colorDim)
+	statsOKStyle   = lipgloss.NewStyle().Foreground(colorSuccess).Bold(true)
+	statsFailStyle = lipgloss.NewStyle().Foreground(colorDanger).Bold(true)
 
-	barEmptyColor    = lipgloss.Color("236")
-	barMasteredColor = lipgloss.Color("220")
-	barAttemptColor  = lipgloss.Color("62")
+	barEmptyColor    = colorDimBg
+	barMasteredColor = colorBarDone
+	barAttemptColor  = colorBarWIP
 )
 
 // ── Model ─────────────────────────────────────────────────────────────────────
@@ -257,7 +257,7 @@ func (m StatsTabModel) View() string {
 
 			dueStr := "          " // 10-char placeholder keeps alignment when nothing is due
 			if t.DueToday > 0 {
-				dueStr = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render(fmt.Sprintf("%d due", t.DueToday))
+				dueStr = "  " + lipgloss.NewStyle().Foreground(colorWarning).Render(fmt.Sprintf("%d due", t.DueToday))
 			}
 
 			b.WriteString(statsIndent + name + "  " + bar + rateStr + ratio + dueStr + "\n")
@@ -315,24 +315,24 @@ func (m StatsTabModel) renderMetricCards() (string, int) {
 			BorderForeground(borderColor)
 	}
 
-	streakNum := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("208")).
+	streakNum := lipgloss.NewStyle().Bold(true).Foreground(colorStreak).
 		Render(fmt.Sprintf("🔥 %d", m.streak))
-	dueNum := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("11")).
+	dueNum := lipgloss.NewStyle().Bold(true).Foreground(colorWarning).
 		Render(fmt.Sprintf("📅 %d", m.overview.DueToday))
 	totalNum := statsMetricNumStyle.Render(fmt.Sprintf("%d", m.overview.Total))
-	masteredNum := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")).
+	masteredNum := lipgloss.NewStyle().Bold(true).Foreground(colorMastered).
 		Render(fmt.Sprintf("★ %d", m.overview.Mastered))
 
-	card1 := card(lipgloss.Color("208")).Render(
+	card1 := card(colorStreak).Render(
 		streakNum + "\n" + statsMetricLabelStyle.Render("streak days"),
 	)
-	card2 := card(lipgloss.Color("11")).Render(
+	card2 := card(colorWarning).Render(
 		dueNum + "\n" + statsMetricLabelStyle.Render("due today"),
 	)
-	card3 := card(lipgloss.Color("62")).Render(
+	card3 := card(colorAccent).Render(
 		totalNum + "\n" + statsMetricLabelStyle.Render("problems"),
 	)
-	card4 := card(lipgloss.Color("220")).Render(
+	card4 := card(colorMastered).Render(
 		masteredNum + "\n" + statsMetricLabelStyle.Render(fmt.Sprintf("mastered (%d%%)", masteredPct)),
 	)
 
@@ -357,7 +357,7 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 
 	var inner strings.Builder
 	inner.WriteString(statsSectionStyle.Render("Currently practicing "))
-	inner.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Render(ps.Name))
+	inner.WriteString(lipgloss.NewStyle().Bold(true).Foreground(colorBright).Render(ps.Name))
 	inner.WriteString("\n\n")
 	inner.WriteString(renderSegmentedBar(ps.Total, barW,
 		barSegment{value: ps.Mastered, color: barMasteredColor},
@@ -373,7 +373,7 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 	// Width includes padding but not borders; subtract 2 for left+right border.
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
+		BorderForeground(colorAccent).
 		Padding(1, 2).
 		Width(cardsWidth - 2).
 		Render(inner.String())
@@ -450,42 +450,16 @@ func safeDiv(n int) float64 {
 	return float64(n)
 }
 
-func diffLipColor(d string) lipgloss.Color {
-	switch d {
-	case "easy":
-		return lipgloss.Color("10")
-	case "medium":
-		return lipgloss.Color("11")
-	case "hard":
-		return lipgloss.Color("9")
-	default:
-		return lipgloss.Color("241")
-	}
-}
-
-func diffBarColor(d string) string {
-	switch d {
-	case "easy":
-		return "10"
-	case "medium":
-		return "11"
-	case "hard":
-		return "9"
-	default:
-		return "241"
-	}
-}
-
 func diffColor(d string) lipgloss.Color {
 	switch d {
 	case "easy":
-		return lipgloss.Color("10")
+		return colorSuccess
 	case "medium":
-		return lipgloss.Color("11")
+		return colorWarning
 	case "hard":
-		return lipgloss.Color("9")
+		return colorDanger
 	default:
-		return lipgloss.Color("241")
+		return colorDim
 	}
 }
 

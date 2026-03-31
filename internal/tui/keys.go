@@ -8,9 +8,9 @@ import (
 
 func newHelpModel() help.Model {
 	h := help.New()
-	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
-	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	h.Styles.ShortSeparator = lipgloss.NewStyle().Foreground(lipgloss.Color("237"))
+	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(colorDim)
+	h.Styles.ShortSeparator = lipgloss.NewStyle().Foreground(colorDimBg)
 	h.ShortSeparator = "  •  "
 	return h
 }

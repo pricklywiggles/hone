@@ -86,13 +86,13 @@ func (t *colorTable) clampOffset() {
 
 var (
 	ctHeaderStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
+			Foreground(colorDim).
 			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("237")).
+			BorderForeground(colorDimBg).
 			BorderBottom(true)
 	ctSelectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
-			Background(lipgloss.Color("62")).
+			Foreground(colorBright).
+			Background(colorAccent).
 			Bold(true)
 )
 

@@ -280,7 +280,7 @@ func buildTableRows(rows []store.ProblemRow) [][]string {
 	for i, r := range rows {
 		star := " "
 		if r.Mastered {
-			star = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render("★")
+			star = lipgloss.NewStyle().Foreground(colorMastered).Render("★")
 		}
 
 		diff := lipgloss.NewStyle().Foreground(diffColor(r.Difficulty)).Render(r.Difficulty)
@@ -299,7 +299,7 @@ func buildTableRows(rows []store.ProblemRow) [][]string {
 
 func formatNextReview(date string, overdue bool) string {
 	if overdue {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true).Render("overdue")
+		return lipgloss.NewStyle().Foreground(colorStreak).Bold(true).Render("overdue")
 	}
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
@@ -309,9 +309,9 @@ func formatNextReview(date string, overdue bool) string {
 	diff := t.Truncate(24 * time.Hour).Sub(today)
 	switch {
 	case diff <= 0:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render("today")
+		return lipgloss.NewStyle().Foreground(colorWarning).Render("today")
 	case diff < 24*time.Hour:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render("tomorrow")
+		return lipgloss.NewStyle().Foreground(colorWarning).Render("tomorrow")
 	case diff < 7*24*time.Hour:
 		return statsDimStyle.Render(fmt.Sprintf("in %d days", int(diff.Hours()/24)))
 	default:
