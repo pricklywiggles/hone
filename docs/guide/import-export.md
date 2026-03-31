@@ -142,7 +142,7 @@ hone init backup.json
 
 3. On the new machine:
    ```sh
-   brew install pricklywiggles/tap/hone
+   brew install pricklywiggles/hone/hone
    hone init hone-backup.json
    ```
 

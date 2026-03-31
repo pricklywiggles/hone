@@ -39,7 +39,7 @@ Full docs at **https://pricklywiggles.github.io/hone** — user guide, command r
 ## Install
 
 ```sh
-brew install pricklywiggles/tap/hone
+brew install pricklywiggles/hone/hone
 ```
 
 Or build from source (requires Go 1.21+):

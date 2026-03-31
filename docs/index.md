@@ -24,7 +24,7 @@ The **spaced repetition engine** schedules each problem based on how quickly you
 === "Homebrew"
 
     ```sh
-    brew install pricklywiggles/tap/hone
+    brew install pricklywiggles/hone/hone
     ```
 
 === "From source"

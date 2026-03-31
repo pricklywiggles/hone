@@ -12,7 +12,7 @@
 === "Homebrew"
 
     ```sh
-    brew install pricklywiggles/tap/hone
+    brew install pricklywiggles/hone/hone
     ```
 
 === "From source"
