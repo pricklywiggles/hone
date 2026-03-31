@@ -50,7 +50,7 @@ jobs:
           MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
         run: |
           echo "Looking for identities:"
-          security find-identity -v -p codesigning | sed 's/./& /g'
+          security find-identity -v -p codesigning
           echo ""
           echo "MACOS_SIGN_IDENTITY is set: $( [ -n "$MACOS_SIGN_IDENTITY" ] && echo yes || echo no )"
           echo "Identity length: ${#MACOS_SIGN_IDENTITY}"
