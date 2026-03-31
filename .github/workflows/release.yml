@@ -55,6 +55,22 @@ jobs:
           echo "MACOS_SIGN_IDENTITY is set: $( [ -n "$MACOS_SIGN_IDENTITY" ] && echo yes || echo no )"
           echo "Identity length: ${#MACOS_SIGN_IDENTITY}"
 
+      - name: Debug codesign from sh -c
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          echo "=== Keychain search list ==="
+          security list-keychains -d user
+          echo ""
+          echo "=== Default keychain ==="
+          security default-keychain
+          echo ""
+          echo "=== Identities ==="
+          security find-identity -v -p codesigning
+          echo ""
+          echo "=== Test from sh -c ==="
+          sh -c 'security find-identity -v -p codesigning'
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
