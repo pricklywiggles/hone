@@ -150,7 +150,7 @@ Opens the dashboard at the Topics tab.
 
 ## `hone auth`
 
-Open a browser window to log in to a problem platform. The session is saved in the browser profile and reused for all future sessions.
+Open a browser window to log in to a problem platform. The session is saved in the browser profile and reused for all future sessions. Google Chrome must be closed before running this command.
 
 ```sh
 hone auth neetcode
