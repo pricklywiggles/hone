@@ -117,3 +117,6 @@ hone auth leetcode
 ```
 
 After authenticating, practice sessions will have access to your account (required for submission detection on some platforms).
+
+!!! info "Privacy"
+    hone does **not** store or transmit any credentials. All authentication is handled exclusively through the browser, exactly as you would log in normally.
