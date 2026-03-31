@@ -61,7 +61,8 @@ jobs:
         run: |
           for bin in dist/hone_darwin_*/hone; do
             echo "Notarizing $bin..."
-            ZIP=$(mktemp /tmp/hone.XXXXXX.zip)
+            ZIP="/tmp/hone-$(basename $(dirname $bin)).zip"
+            rm -f "$ZIP"
             zip -j "$ZIP" "$bin"
             xcrun notarytool submit "$ZIP" \
               --apple-id "$APPLE_ID" \
