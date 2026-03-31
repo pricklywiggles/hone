@@ -9,21 +9,21 @@
 
 ## Installation
 
-=== "Homebrew"
+/// tab | Homebrew
+```sh
+brew install pricklywiggles/hone/hone
+```
+///
 
-    ```sh
-    brew install pricklywiggles/hone/hone
-    ```
+/// tab | From source
+Requires Go 1.21+.
 
-=== "From source"
-
-    Requires Go 1.21+.
-
-    ```sh
-    git clone https://github.com/pricklywiggles/hone
-    cd hone
-    go install .
-    ```
+```sh
+git clone https://github.com/pricklywiggles/hone
+cd hone
+go install .
+```
+///
 
 ---
 

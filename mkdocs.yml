@@ -18,8 +18,7 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.highlight
-  - pymdownx.tabbed:
-      alternate_style: true
+  - pymdownx.blocks.tab
   - attr_list
   - toc:
       permalink: true
@@ -28,7 +27,7 @@ markdown_extensions:
 
 nav:
   - User Guide:
-    - Home: index.md
+    - Welcome: index.md
     - Getting Started: guide/getting-started.md
     - Commands Reference: guide/commands.md
     - Dashboard Guide: guide/dashboard.md

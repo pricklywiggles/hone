@@ -26,19 +26,19 @@ The **spaced repetition engine** schedules each problem based on how quickly you
 
 ## Quick start
 
-=== "Homebrew"
+/// tab | Homebrew
+```sh
+brew install pricklywiggles/hone/hone
+```
+///
 
-    ```sh
-    brew install pricklywiggles/hone/hone
-    ```
-
-=== "From source"
-
-    ```sh
-    git clone https://github.com/pricklywiggles/hone
-    cd hone
-    go install .
-    ```
+/// tab | From source
+```sh
+git clone https://github.com/pricklywiggles/hone
+cd hone
+go install .
+```
+///
 
 Then add your first problem and start practicing:
 
