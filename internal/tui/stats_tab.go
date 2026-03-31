@@ -67,6 +67,7 @@ type StatsTabModel struct {
 	recent        []store.RecentAttempt
 	practiceStats *store.PlaylistStats
 	height        int
+	scrollOffset  int
 	db            *sqlx.DB
 	filter        store.PracticeFilter
 	help          help.Model
@@ -138,6 +139,7 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loaded = true
 		m.loading = false
 		m.err = nil
+		m.scrollOffset = 0
 		return m, nil
 
 	case statsErrMsg:
@@ -146,12 +148,53 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if msg.String() == "r" {
+		switch msg.String() {
+		case "r":
 			m.loading = true
 			return m, m.loadCmd()
+		case "j", "down":
+			m.scrollOffset++
+		case "k", "up":
+			m.scrollOffset--
+		case "pgdown", "ctrl+d":
+			page := m.height - 12
+			if page < 1 {
+				page = 1
+			}
+			m.scrollOffset += page
+		case "pgup", "ctrl+u":
+			page := m.height - 12
+			if page < 1 {
+				page = 1
+			}
+			m.scrollOffset -= page
+		}
+		if m.scrollOffset < 0 {
+			m.scrollOffset = 0
+		}
+		if m.loaded {
+			m.clampScroll()
 		}
 	}
 	return m, nil
+}
+
+func (m *StatsTabModel) clampScroll() {
+	scrollContent := m.renderScrollableContent()
+	lines := strings.Split(scrollContent, "\n")
+	header, _ := m.renderFixedHeader()
+	headerH := lipgloss.Height(header)
+	viewportH := m.height - headerH - 3
+	if viewportH < 1 {
+		viewportH = 1
+	}
+	scrollMax := len(lines) - viewportH
+	if scrollMax < 0 {
+		scrollMax = 0
+	}
+	if m.scrollOffset > scrollMax {
+		m.scrollOffset = scrollMax
+	}
 }
 
 func (m StatsTabModel) View() string {
@@ -162,21 +205,102 @@ func (m StatsTabModel) View() string {
 		return "\n  " + statsFailStyle.Render("error: "+m.err.Error())
 	}
 
-	var b strings.Builder
+	fixedHeader, cardsWidth := m.renderFixedHeader()
+	scrollContent := m.renderScrollableContent()
 
-	// ── Metric cards ─────────────────────────────────────────────────────────
+	headerH := lipgloss.Height(fixedHeader)
+	viewportH := m.height - headerH - 3
+	if viewportH < 1 {
+		viewportH = 1
+	}
+
+	lines := strings.Split(scrollContent, "\n")
+	scrollMax := len(lines) - viewportH
+	if scrollMax < 0 {
+		scrollMax = 0
+	}
+	offset := m.scrollOffset
+	if offset > scrollMax {
+		offset = scrollMax
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	end := offset + viewportH
+	if end > len(lines) {
+		end = len(lines)
+	}
+	visible := lines[offset:end]
+
+	// Pad to fill viewport height
+	for len(visible) < viewportH {
+		visible = append(visible, "")
+	}
+
+	// Scrollbar: only show when content overflows
+	showScrollbar := scrollMax > 0
+	if showScrollbar {
+		totalLines := len(lines)
+		thumbSize := viewportH * viewportH / totalLines
+		if thumbSize < 1 {
+			thumbSize = 1
+		}
+		thumbPos := 0
+		if scrollMax > 0 {
+			thumbPos = offset * (viewportH - thumbSize) / scrollMax
+		}
+
+		track := lipgloss.NewStyle().Foreground(colorDimBg).Render("│")
+		thumb := lipgloss.NewStyle().Foreground(colorDim).Render("█")
+
+		// Content width inside the box (box width minus padding 2*2 minus scrollbar gap)
+		contentW := cardsWidth - 2 - 4 - 2
+		for i, line := range visible {
+			lineW := lipgloss.Width(line)
+			gap := contentW - lineW
+			if gap < 0 {
+				gap = 0
+			}
+			indicator := track
+			if i >= thumbPos && i < thumbPos+thumbSize {
+				indicator = thumb
+			}
+			visible[i] = line + strings.Repeat(" ", gap) + " " + indicator
+		}
+	}
+
+	innerContent := strings.Join(visible, "\n")
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorDimBg).
+		Padding(0, 2).
+		Width(cardsWidth - 2).
+		Render(innerContent)
+
+	return fixedHeader + lipgloss.NewStyle().MarginLeft(4).Render(box) + "\n" + statsIndent + m.help.View(statsKeyMap{})
+}
+
+func (m StatsTabModel) renderFixedHeader() (string, int) {
+	var b strings.Builder
 	b.WriteString("\n")
 	cards, cardsInnerWidth := m.renderMetricCards()
 	b.WriteString(cards)
 
-	// ── Active practice filter (playlist or topic) ──────────────────────────
 	if ps := m.practiceStats; ps != nil && ps.Total > 0 {
 		b.WriteString(m.renderPracticeSection(ps, cardsInnerWidth))
 	}
+	b.WriteString("\n")
+	return b.String(), cardsInnerWidth
+}
+
+func (m StatsTabModel) renderScrollableContent() string {
+	var b strings.Builder
 
 	// ── Overall progress ─────────────────────────────────────────────────────
-	b.WriteString("\n\n" + statsIndent)
-	b.WriteString(statsSectionStyle.Render("Progress"))
+	b.WriteString("\n")
+	b.WriteString(statsSectionStyle.Render("Overall Progress"))
 	b.WriteString("\n\n")
 	if m.overview.Total > 0 {
 		attempted := m.overview.AttemptedOnce - m.overview.Mastered
@@ -191,8 +315,7 @@ func (m StatsTabModel) View() string {
 			barSegment{value: m.overview.Mastered, color: barMasteredColor},
 			barSegment{value: attempted, color: barAttemptColor},
 		)
-		b.WriteString(statsIndent + bar + "\n\n")
-		b.WriteString(statsIndent)
+		b.WriteString(bar + "\n\n")
 		b.WriteString(renderLegendDot(barMasteredColor) + " " + statsDimStyle.Render(fmt.Sprintf("mastered %d", m.overview.Mastered)))
 		b.WriteString("   ")
 		b.WriteString(renderLegendDot(barAttemptColor) + " " + statsDimStyle.Render(fmt.Sprintf("attempted %d", attempted)))
@@ -203,7 +326,7 @@ func (m StatsTabModel) View() string {
 
 	// ── By difficulty ─────────────────────────────────────────────────────────
 	if len(m.diff) > 0 {
-		b.WriteString("\n" + statsIndent)
+		b.WriteString("\n\n")
 		b.WriteString(statsSectionStyle.Render("By Difficulty"))
 		b.WriteString("\n\n")
 		for _, d := range m.diff {
@@ -218,14 +341,14 @@ func (m StatsTabModel) View() string {
 			)
 			ratio := fmt.Sprintf("%d/%d", d.Attempted, d.Total)
 			mastered := fmt.Sprintf("mastered %d", d.Mastered)
-			b.WriteString(statsIndent + label + bar + "  " + statsDimStyle.Render(fmt.Sprintf("%-7s %s", ratio, mastered)))
+			b.WriteString(label + bar + "  " + statsDimStyle.Render(fmt.Sprintf("%-7s %s", ratio, mastered)))
 			b.WriteString("\n")
 		}
 	}
 
 	// ── Weakest topics ────────────────────────────────────────────────────────
 	if len(m.topics) > 0 {
-		b.WriteString("\n" + statsIndent)
+		b.WriteString("\n")
 		b.WriteString(statsSectionStyle.Render("Weakest Topics"))
 		b.WriteString("\n\n")
 		limit := 6
@@ -252,21 +375,20 @@ func (m StatsTabModel) View() string {
 				rateStr = lipgloss.NewStyle().Foreground(rateColor(pct)).Render(fmt.Sprintf(" %3d%%", pct))
 			}
 
-			// Fixed-width ratio so the due column always aligns.
 			ratio := statsDimStyle.Render(fmt.Sprintf("  %3d/%-3d", t.Mastered, t.Total))
 
-			dueStr := "          " // 10-char placeholder keeps alignment when nothing is due
+			dueStr := "          "
 			if t.DueToday > 0 {
 				dueStr = "  " + lipgloss.NewStyle().Foreground(colorWarning).Render(fmt.Sprintf("%d due", t.DueToday))
 			}
 
-			b.WriteString(statsIndent + name + "  " + bar + rateStr + ratio + dueStr + "\n")
+			b.WriteString(name + "  " + bar + rateStr + ratio + dueStr + "\n")
 		}
 	}
 
 	// ── Recent attempts ───────────────────────────────────────────────────────
 	if len(m.recent) > 0 {
-		b.WriteString("\n" + statsIndent)
+		b.WriteString("\n")
 		b.WriteString(statsSectionStyle.Render("Recent"))
 		b.WriteString("\n\n")
 		for _, a := range m.recent {
@@ -278,7 +400,7 @@ func (m StatsTabModel) View() string {
 			dur := formatDuration(time.Duration(a.DurationSec) * time.Second)
 			when := timeAgo(a.StartedAt)
 			title := fmt.Sprintf("%-28s", truncate(a.Title, 28))
-			b.WriteString(fmt.Sprintf(statsIndent+"%s  %s  %s  %s  %s\n",
+			b.WriteString(fmt.Sprintf("%s  %s  %s  %s  %s\n",
 				icon,
 				title,
 				diffStyle.Render(fmt.Sprintf("%-6s", a.Difficulty)),
@@ -288,14 +410,7 @@ func (m StatsTabModel) View() string {
 		}
 	}
 
-	content := b.String()
-	contentLines := strings.Count(content, "\n")
-	// Reserve 1 line for the help bar itself
-	pad := m.height - contentLines - 1
-	if pad < 1 {
-		pad = 1
-	}
-	return content + strings.Repeat("\n", pad) + statsIndent + m.help.View(statsKeyMap{})
+	return b.String()
 }
 
 func (m StatsTabModel) renderMetricCards() (string, int) {
