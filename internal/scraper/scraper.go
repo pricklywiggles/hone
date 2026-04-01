@@ -34,6 +34,7 @@ func launchChrome(chromePath, profileDir string) (wsURL string, cleanup func(), 
 	}
 
 	cmd := exec.Command(chromePath,
+		"--headless=new",
 		fmt.Sprintf("--remote-debugging-port=%d", port),
 		fmt.Sprintf("--user-data-dir=%s", profileDir),
 		"--no-first-run",
