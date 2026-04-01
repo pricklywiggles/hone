@@ -23,7 +23,7 @@ type ProblemMeta struct {
 	Topics     []string // e.g. ["array", "hash-table"]
 }
 
-// launchChrome starts Chrome as a normal process (headful) with a remote
+// launchChrome starts Chrome via exec.Command with --headless=new and a remote
 // debugging port, then returns the DevTools WebSocket URL for Rod to connect.
 // We launch externally (not via Rod's launcher) so Chrome can access the macOS
 // Keychain to decrypt cookies saved during `hone auth`.
@@ -72,6 +72,9 @@ func launchChrome(chromePath, profileDir string) (wsURL string, cleanup func(), 
 	return ws, func() {
 		cmd.Process.Kill()
 		cmd.Wait()
+		for _, f := range []string{"SingletonLock", "SingletonSocket", "SingletonCookie"} {
+			os.Remove(filepath.Join(profileDir, f))
+		}
 	}, nil
 }
 
@@ -86,7 +89,7 @@ func freePort() (int, error) {
 }
 
 // Scrape fetches problem metadata from the platform page for the given slug.
-// Launches Chrome headful with the persistent browser profile. Timeout: 30 seconds.
+// Launches headless Chrome with the persistent browser profile. Timeout: 30 seconds.
 func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 	tmpl := viper.GetString("platforms." + platform + ".url_template")
 	if tmpl == "" {
@@ -110,7 +113,9 @@ func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 		return ProblemMeta{}, fmt.Errorf("page load timeout: %w", err)
 	}
 	_ = page.WaitIdle(5 * time.Second)
-	time.Sleep(3 * time.Second)
+	if platform == "neetcode" {
+		time.Sleep(3 * time.Second)
+	}
 
 	debuglog.Log("scrape: start %s/%s", platform, slug)
 
