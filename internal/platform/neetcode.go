@@ -32,6 +32,10 @@ func (NeetCode) URLTemplate() string {
 	return "https://neetcode.io/problems/{{slug}}/question"
 }
 
+func (NeetCode) LoginURL() string {
+	return "https://neetcode.io/"
+}
+
 func (NeetCode) ExtraWait(page *rod.Page) error {
 	time.Sleep(3 * time.Second)
 	return nil

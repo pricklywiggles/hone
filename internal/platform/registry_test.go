@@ -17,6 +17,7 @@ func (s *stubPlatform) Name() string                                         { r
 func (s *stubPlatform) Hostnames() []string                                  { return s.hostnames }
 func (s *stubPlatform) SlugFromPath(path string) (string, error)             { return "", nil }
 func (s *stubPlatform) URLTemplate() string                                  { return s.urlTemplate }
+func (s *stubPlatform) LoginURL() string                                     { return "" }
 func (s *stubPlatform) ExtraWait(page *rod.Page) error                       { return nil }
 func (s *stubPlatform) Scrape(page *rod.Page) (ProblemMeta, error)           { return ProblemMeta{}, nil }
 func (s *stubPlatform) DetectResult(page *rod.Page) (success bool, found bool) { return false, false }

@@ -20,6 +20,7 @@ type Platform interface {
 	Hostnames() []string
 	SlugFromPath(path string) (string, error)
 	URLTemplate() string
+	LoginURL() string
 	ExtraWait(page *rod.Page) error
 	Scrape(page *rod.Page) (ProblemMeta, error)
 	DetectResult(page *rod.Page) (success bool, found bool)

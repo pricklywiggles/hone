@@ -31,6 +31,10 @@ func (LeetCode) URLTemplate() string {
 	return "https://leetcode.com/problems/{{slug}}/"
 }
 
+func (LeetCode) LoginURL() string {
+	return "https://leetcode.com/accounts/login/"
+}
+
 func (LeetCode) ExtraWait(page *rod.Page) error { return nil }
 
 func (LeetCode) Scrape(page *rod.Page) (ProblemMeta, error) {

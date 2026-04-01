@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/pricklywiggles/hone/internal/config"
+	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 func init() {
@@ -22,19 +22,9 @@ var authCmd = &cobra.Command{
 	Short: "Log in to a platform (saves session for scraping)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		platform := strings.ToLower(args[0])
-		tmpl := viper.GetString("platforms." + platform + ".url_template")
-		if tmpl == "" {
-			return fmt.Errorf("unsupported platform %q", platform)
-		}
-		loginURLs := map[string]string{
-			"leetcode":       "https://leetcode.com/accounts/login/",
-			"geeksforgeeks":  "https://auth.geeksforgeeks.org/",
-		}
-		loginURL := loginURLs[platform]
-		if loginURL == "" {
-			parts := strings.SplitN(tmpl, "/problems/", 2)
-			loginURL = parts[0] + "/"
+		p, err := platform.Get(strings.ToLower(args[0]))
+		if err != nil {
+			return fmt.Errorf("unsupported platform %q", args[0])
 		}
 
 		if out, _ := exec.Command("pgrep", "-x", "Google Chrome").Output(); len(out) > 0 {
@@ -54,13 +44,13 @@ var authCmd = &cobra.Command{
 			"--no-first-run",
 			"--no-default-browser-check",
 			"--disable-background-networking",
-			loginURL,
+			p.LoginURL(),
 		)
 		if err := chromeCmd.Start(); err != nil {
 			return fmt.Errorf("could not launch Chrome: %w", err)
 		}
 
-		fmt.Printf("Browser opened at %s.\nLog in, then press Enter here to close the browser...\n", platform)
+		fmt.Printf("Browser opened at %s.\nLog in, then press Enter here to close the browser...\n", p.Name())
 		bufio.NewReader(os.Stdin).ReadString('\n')
 		chromeCmd.Process.Kill()
 		chromeCmd.Wait()
@@ -69,7 +59,7 @@ var authCmd = &cobra.Command{
 			os.Remove(filepath.Join(profileDir, f))
 		}
 
-		fmt.Printf("Session saved. You can now use 'hone add' with %s URLs.\n", platform)
+		fmt.Printf("Session saved. You can now use 'hone add' with %s URLs.\n", p.Name())
 		return nil
 	},
 }

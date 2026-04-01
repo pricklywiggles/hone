@@ -32,6 +32,10 @@ func (GeeksForGeeks) URLTemplate() string {
 	return "https://www.geeksforgeeks.org/problems/{{slug}}/1"
 }
 
+func (GeeksForGeeks) LoginURL() string {
+	return "https://auth.geeksforgeeks.org/"
+}
+
 func (GeeksForGeeks) ExtraWait(page *rod.Page) error {
 	time.Sleep(2 * time.Second)
 	return nil
