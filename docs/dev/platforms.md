@@ -30,19 +30,28 @@ Add table-driven tests to `internal/platform/platform_test.go`.
 
 ## 2. Scraper selectors (`internal/scraper/scraper.go`)
 
-Add a case to the platform switch in `Scrape` with the DOM selectors for the new platform:
+Add a case to the platform switch in `Scrape`, and a corresponding `scrapeNewPlatform(page)` function. Extract the JSON/DOM parsing into a pure function (`parseNewPlatform(raw string)`) so it can be unit-tested without a browser:
 
 ```go
 case "newplatform":
-    title, err = page.MustElement(".problem-title").Text()
-    // difficulty, topics, etc.
+    return scrapeNewPlatform(page)
 ```
-
-Selectors should be tested manually against live pages. Because scrapers depend on external sites, there are no automated tests — add a comment near each selector with the date it was verified:
 
 ```go
-// verified 2026-03-30 against newplatform.com/problems/two-sum
+func scrapeNewPlatform(page *rod.Page) (ProblemMeta, error) {
+    // extract raw data from the page
+    raw := page.MustElement(`script#data`).MustText()
+    return parseNewPlatform(raw)
+}
+
+func parseNewPlatform(raw string) (ProblemMeta, error) {
+    // pure parsing logic, testable without a browser
+}
 ```
+
+Topic names must normalize dashes to spaces (e.g. `"breadth-first-search"` → `"breadth first search"`) to stay consistent with existing platforms and avoid duplicate topics.
+
+Add unit tests for the parse function in `internal/scraper/scraper_test.go`. Selectors should also be verified manually against live pages.
 
 ---
 
@@ -85,7 +94,9 @@ This template is used by `config.BuildURL(platform, slug)` when constructing URL
 
 - [ ] `ParseURL` case in `internal/platform/platform.go`
 - [ ] Tests in `internal/platform/platform_test.go`
-- [ ] `Scrape` case in `internal/scraper/scraper.go`
+- [ ] `Scrape` case and extracted parse function in `internal/scraper/scraper.go`
+- [ ] Parse function tests in `internal/scraper/scraper_test.go`
+- [ ] Topic names normalize dashes to spaces
 - [ ] `Monitor` case in `internal/monitor/monitor.go`
 - [ ] Default URL template in `internal/config/config.go`
 - [ ] Manual verification: add a problem, run a practice session, check export output
