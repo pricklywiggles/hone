@@ -3,11 +3,14 @@ package scraper
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/pricklywiggles/hone/internal/debuglog"
 	"github.com/spf13/viper"
 )
 
@@ -39,6 +42,15 @@ func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 	}
 	_ = page.WaitIdle(2 * time.Second)
 
+	debuglog.Log("scrape: start %s/%s", platform, slug)
+
+	if os.Getenv("HONE_DEBUG") != "" {
+		html, _ := page.HTML()
+		homeDir, _ := os.UserHomeDir()
+		os.WriteFile(filepath.Join(homeDir, ".local", "share", "hone", "debug-page.html"), []byte(html), 0644)
+		debuglog.Log("scrape: saved page HTML to debug-page.html")
+	}
+
 	switch platform {
 	case "leetcode":
 		return scrapeLeetCode(page)
@@ -52,11 +64,11 @@ func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 func scrapeLeetCode(page *rod.Page) (ProblemMeta, error) {
 	var meta ProblemMeta
 
-	// LeetCode embeds all problem data in a __NEXT_DATA__ script tag.
 	var raw string
 	if err := rod.Try(func() {
 		raw = page.MustElement(`script#__NEXT_DATA__`).MustText()
 	}); err != nil {
+		debuglog.Log("leetcode: __NEXT_DATA__ not found")
 		return meta, fmt.Errorf("could not find __NEXT_DATA__ on LeetCode page")
 	}
 
@@ -104,22 +116,28 @@ func scrapeLeetCode(page *rod.Page) (ProblemMeta, error) {
 	meta.Topics = dedup(meta.Topics)
 
 	if meta.Title == "" {
+		debuglog.Log("leetcode: __NEXT_DATA__ found but no title extracted")
 		return meta, fmt.Errorf("could not extract title from LeetCode __NEXT_DATA__")
 	}
+	debuglog.Log("leetcode: __NEXT_DATA__ succeeded (%s)", meta.Title)
 	return meta, nil
 }
 
 func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
-	var meta ProblemMeta
+	var ngMeta ProblemMeta
+	if m, err := scrapeNeetCodeNgState(page); err == nil {
+		debuglog.Log("neetcode: ng-state succeeded (%s)", m.Title)
+		ngMeta = m
+	} else {
+		debuglog.Log("neetcode: ng-state failed (%v)", err)
+	}
 
+	var domMeta ProblemMeta
 	rod.Try(func() {
 		el := page.MustElement(`h1`)
 		el.MustWaitVisible()
-		meta.Title = strings.TrimSpace(el.MustText())
+		domMeta.Title = strings.TrimSpace(el.MustText())
 	})
-
-	// Difficulty: <span class="difficulty-pill medium">Medium</span>
-	// Wait for the element to appear (JS-rendered), then check class attribute and text.
 	rod.Try(func() {
 		el := page.MustElement(`.difficulty-pill`)
 		el.MustWaitVisible()
@@ -127,23 +145,18 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 		if class != nil {
 			for _, d := range []string{"easy", "medium", "hard"} {
 				if strings.Contains(*class, d) {
-					meta.Difficulty = d
+					domMeta.Difficulty = d
 					break
 				}
 			}
 		}
-		if meta.Difficulty == "" {
+		if domMeta.Difficulty == "" {
 			text := strings.TrimSpace(strings.ToLower(el.MustText()))
 			if text == "easy" || text == "medium" || text == "hard" {
-				meta.Difficulty = text
+				domMeta.Difficulty = text
 			}
 		}
 	})
-
-	// Topics: find the <summary> with text "Topics", get its parent <details>,
-	// then collect a.company-tag-reveal-btn links within it.
-	// (company-tags-container is reused elsewhere so we anchor on the summary.)
-	var topics []string
 	rod.Try(func() {
 		summaries := page.MustElements(`summary`)
 		for _, s := range summaries {
@@ -153,20 +166,33 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 			parent := s.MustParent()
 			links, _ := parent.Elements(`a.company-tag-reveal-btn`)
 			for _, a := range links {
-				// href="/practice/problem-list/binary-search" → "binary-search"
 				href, _ := a.Attribute("href")
 				if href != nil && *href != "" {
 					parts := strings.Split(strings.Trim(*href, "/"), "/")
 					slug := parts[len(parts)-1]
 					if slug != "" {
-						topics = append(topics, strings.ReplaceAll(slug, "-", " "))
+						domMeta.Topics = append(domMeta.Topics, strings.ReplaceAll(slug, "-", " "))
 					}
 				}
 			}
 			break
 		}
 	})
-	meta.Topics = dedup(topics)
+	if domMeta.Title != "" {
+		debuglog.Log("neetcode: DOM selectors succeeded (%s)", domMeta.Title)
+	} else {
+		debuglog.Log("neetcode: DOM selectors failed")
+	}
+
+	// Merge: prefer ng-state, fill gaps from DOM.
+	meta := ngMeta
+	if meta.Title == "" {
+		meta.Title = domMeta.Title
+	}
+	if meta.Difficulty == "" {
+		meta.Difficulty = domMeta.Difficulty
+	}
+	meta.Topics = dedup(append(meta.Topics, domMeta.Topics...))
 
 	if meta.Title == "" {
 		return meta, fmt.Errorf("could not extract title from NeetCode page")
@@ -175,6 +201,39 @@ func scrapeNeetCode(page *rod.Page) (ProblemMeta, error) {
 		return meta, fmt.Errorf("could not extract difficulty from NeetCode page")
 	}
 	return meta, nil
+}
+
+func scrapeNeetCodeNgState(page *rod.Page) (ProblemMeta, error) {
+	var raw string
+	if err := rod.Try(func() {
+		raw = page.MustElement(`script#ng-state`).MustText()
+	}); err != nil {
+		return ProblemMeta{}, fmt.Errorf("ng-state not found")
+	}
+
+	var state map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &state); err != nil {
+		return ProblemMeta{}, fmt.Errorf("failed to parse ng-state: %w", err)
+	}
+
+	for key, entry := range state {
+		if !strings.HasPrefix(key, "problem-") {
+			continue
+		}
+		debuglog.Log("neetcode: ng-state[%s] = %s", key, string(entry))
+		var prob struct {
+			Name       string `json:"name"`
+			Difficulty string `json:"difficulty"`
+		}
+		if err := json.Unmarshal(entry, &prob); err != nil || prob.Name == "" {
+			continue
+		}
+		return ProblemMeta{
+			Title:      strings.TrimSpace(prob.Name),
+			Difficulty: strings.ToLower(strings.TrimSpace(prob.Difficulty)),
+		}, nil
+	}
+	return ProblemMeta{}, fmt.Errorf("no problem data in ng-state")
 }
 
 func dedup(ss []string) []string {

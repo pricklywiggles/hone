@@ -274,6 +274,16 @@ func (m ImportModel) processItem(index int) tea.Cmd {
 	}
 }
 
+func (m ImportModel) FailedURLs() []string {
+	var urls []string
+	for _, it := range m.items {
+		if it.state == importFailed {
+			urls = append(urls, it.url)
+		}
+	}
+	return urls
+}
+
 // ── view ──────────────────────────────────────────────────────────────────────
 
 func (m ImportModel) View() string {

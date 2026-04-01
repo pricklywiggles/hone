@@ -178,6 +178,16 @@ func (m BatchAddModel) scrapeItem(index int) tea.Cmd {
 	}
 }
 
+func (m BatchAddModel) FailedURLs() []string {
+	var urls []string
+	for _, it := range m.items {
+		if it.state == batchFailed {
+			urls = append(urls, it.url)
+		}
+	}
+	return urls
+}
+
 var (
 	batchOKStyle   = lipgloss.NewStyle().Foreground(colorSuccess).Bold(true)
 	batchSkipStyle = lipgloss.NewStyle().Foreground(colorWarning)

@@ -47,7 +47,10 @@ Example file:
 		}
 
 		m := tui.NewImportModel(appDB, config.BrowserProfileDir(), groups)
-		_, err = tui.RunInline(m)
-		return err
+		final, err := tui.RunInline(m)
+		if err != nil {
+			return err
+		}
+		return writeFailedURLs(final.(tui.ImportModel).FailedURLs())
 	},
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -27,8 +28,11 @@ var addCmd = &cobra.Command{
 				return err
 			}
 			m := tui.NewBatchAddModel(appDB, config.BrowserProfileDir(), urls)
-			_, err = tui.Run(m)
-			return err
+			final, err := tui.Run(m)
+			if err != nil {
+				return err
+			}
+			return writeFailedURLs(final.(tui.BatchAddModel).FailedURLs())
 		}
 
 		url := ""
@@ -39,6 +43,18 @@ var addCmd = &cobra.Command{
 		_, err := tui.Run(m)
 		return err
 	},
+}
+
+func writeFailedURLs(urls []string) error {
+	if len(urls) == 0 {
+		return nil
+	}
+	err := os.WriteFile("failed_urls.txt", []byte(strings.Join(urls, "\n")+"\n"), 0644)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\nWrote %d failed URL(s) to failed_urls.txt\n", len(urls))
+	return nil
 }
 
 func readURLFile(path string) ([]string, error) {
