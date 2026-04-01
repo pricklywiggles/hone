@@ -43,6 +43,29 @@ func TestParseURL(t *testing.T) {
 			wantSlug:     "eating-bananas",
 		},
 		{
+			name:         "geeksforgeeks with trailing number",
+			input:        "https://www.geeksforgeeks.org/problems/reverse-a-linked-list/1",
+			wantPlatform: "geeksforgeeks",
+			wantSlug:     "reverse-a-linked-list",
+		},
+		{
+			name:         "geeksforgeeks no www",
+			input:        "https://geeksforgeeks.org/problems/two-sum/0",
+			wantPlatform: "geeksforgeeks",
+			wantSlug:     "two-sum",
+		},
+		{
+			name:         "geeksforgeeks practice subdomain",
+			input:        "https://practice.geeksforgeeks.org/problems/some-problem/1",
+			wantPlatform: "geeksforgeeks",
+			wantSlug:     "some-problem",
+		},
+		{
+			name:    "geeksforgeeks non-problem path",
+			input:   "https://www.geeksforgeeks.org/dsa/some-article/",
+			wantErr: true,
+		},
+		{
 			name:    "unknown host",
 			input:   "https://hackerrank.com/problems/two-sum/",
 			wantErr: true,
