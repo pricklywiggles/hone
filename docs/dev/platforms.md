@@ -1,102 +1,90 @@
 # Adding a New Platform
 
-hone currently supports **NeetCode** and **LeetCode**. Adding a new platform requires changes in four places.
+hone currently supports **LeetCode**, **NeetCode**, and **GeeksForGeeks**. Each platform is a single Go file in `internal/platform/` that implements the `Platform` interface and self-registers via `init()`.
 
 ---
 
-## 1. URL parser (`internal/platform/platform.go`)
+## How to add a platform
 
-Add a case to the `switch` in `ParseURL`:
+Create a new file `internal/platform/newplatform.go`:
 
 ```go
-case "newplatform.com", "www.newplatform.com":
-    platform = "newplatform"
+package platform
+
+type NewPlatform struct{}
+
+func init() { Register(&NewPlatform{}) }
 ```
 
-Make sure the path parsing logic still applies. The current parser expects `/problems/<slug>[/<extra>...]` — if the new platform uses a different path structure, add a platform-specific branch:
+Implement all methods of the `Platform` interface:
+
+| Method | Purpose |
+|--------|---------|
+| `Name()` | Canonical lowercase name (e.g. `"newplatform"`) |
+| `Hostnames()` | All hostname variants (e.g. `["newplatform.com", "www.newplatform.com"]`) |
+| `SlugFromPath(path)` | Extract problem slug from URL path |
+| `URLTemplate()` | Default URL template with `{{slug}}` placeholder |
+| `ExtraWait(page)` | Post-load delay if needed (no-op for most platforms) |
+| `Scrape(page)` | Extract title, difficulty, topics from a loaded page |
+| `DetectResult(page)` | Check for submission verdict (success/failure) |
+| `ResultIndicatorText(page)` | Snapshot of result area for change detection |
+
+### Scraping pattern
+
+Extract raw data from the page (embedded JSON or DOM selectors), then delegate to a private pure function for parsing:
 
 ```go
-case "newplatform":
-    // path: /challenge/<slug>
-    if len(parts) < 2 || parts[0] != "challenge" {
-        return "", "", fmt.Errorf("unrecognized path: %s", u.Path)
-    }
-    return platform, parts[1], nil
-```
-
-Add table-driven tests to `internal/platform/platform_test.go`.
-
----
-
-## 2. Scraper selectors (`internal/scraper/scraper.go`)
-
-Add a case to the platform switch in `Scrape`, and a corresponding `scrapeNewPlatform(page)` function. Extract the JSON/DOM parsing into a pure function (`parseNewPlatform(raw string)`) so it can be unit-tested without a browser:
-
-```go
-case "newplatform":
-    return scrapeNewPlatform(page)
-```
-
-```go
-func scrapeNewPlatform(page *rod.Page) (ProblemMeta, error) {
-    // extract raw data from the page
-    raw := page.MustElement(`script#data`).MustText()
+func (NewPlatform) Scrape(page *rod.Page) (ProblemMeta, error) {
+    raw := page.MustElement(`script#__NEXT_DATA__`).MustText()
     return parseNewPlatform(raw)
 }
 
 func parseNewPlatform(raw string) (ProblemMeta, error) {
-    // pure parsing logic, testable without a browser
+    // pure parsing, testable without a browser
 }
 ```
 
-Topic names must normalize dashes to spaces (e.g. `"breadth-first-search"` → `"breadth first search"`) to stay consistent with existing platforms and avoid duplicate topics.
+Topic names must normalize dashes to spaces and lowercase (e.g. `"Breadth-First-Search"` → `"breadth first search"`). Use `Dedup()` to remove duplicates.
 
-Add unit tests for the parse function in `internal/scraper/scraper_test.go`. Selectors should also be verified manually against live pages.
+### Monitor pattern
+
+Define success/failure CSS selector slices, then use the shared DOM helpers:
+
+```go
+var newplatformSuccess = []string{".result-accepted"}
+var newplatformFailure = []string{".result-wrong"}
+
+func (NewPlatform) DetectResult(page *rod.Page) (bool, bool) {
+    if ElementPresent(page, newplatformSuccess...) { return true, true }
+    if ElementPresent(page, newplatformFailure...) { return false, true }
+    return false, false
+}
+
+func (NewPlatform) ResultIndicatorText(page *rod.Page) string {
+    return ElementExists(page, newplatformSuccess, newplatformFailure)
+}
+```
 
 ---
 
-## 3. Monitor selectors (`internal/monitor/monitor.go`)
+## Tests
 
-Add a case in the polling loop for submission result detection:
+Create `internal/platform/newplatform_test.go` with:
 
-```go
-case "newplatform":
-    // Detect accepted submission
-    el, err := page.Element(".result-accepted")
-    if err == nil && el != nil {
-        return Result{Success: true, Timestamp: time.Now()}
-    }
-    // Detect failed submission
-    el, err = page.Element(".result-wrong-answer")
-    if err == nil && el != nil {
-        return Result{Success: false, Timestamp: time.Now()}
-    }
-```
+- `TestParseNewPlatform` — valid data, dashed topic normalization, empty title error, malformed input
+- `TestNewPlatformSlugFromPath` — happy path and error cases
+- `TestNewPlatformName`, `TestNewPlatformHostnames` — identity checks
 
-The monitor polls the DOM every second and returns as soon as a result is detected. Context cancellation (user presses `q`) is checked on each iteration.
+Add URL test cases to `internal/platform/platform_test.go` for `ParseURL`.
 
----
-
-## 4. URL template config (`internal/config/config.go`)
-
-Add a default in `setDefaults`:
-
-```go
-viper.SetDefault("platforms.newplatform.url_template",
-    "https://newplatform.com/challenge/{{slug}}/")
-```
-
-This template is used by `config.BuildURL(platform, slug)` when constructing URLs for export and display. The `{{slug}}` placeholder is replaced at runtime.
+Monitor selectors need manual verification against the live site.
 
 ---
 
 ## Checklist
 
-- [ ] `ParseURL` case in `internal/platform/platform.go`
-- [ ] Tests in `internal/platform/platform_test.go`
-- [ ] `Scrape` case and extracted parse function in `internal/scraper/scraper.go`
-- [ ] Parse function tests in `internal/scraper/scraper_test.go`
+- [ ] `internal/platform/newplatform.go` — implements `Platform`, calls `Register` in `init()`
+- [ ] `internal/platform/newplatform_test.go` — parse function + slug + identity tests
+- [ ] URL test cases in `internal/platform/platform_test.go`
 - [ ] Topic names normalize dashes to spaces
-- [ ] `Monitor` case in `internal/monitor/monitor.go`
-- [ ] Default URL template in `internal/config/config.go`
 - [ ] Manual verification: add a problem, run a practice session, check export output
