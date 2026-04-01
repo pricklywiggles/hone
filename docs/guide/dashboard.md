@@ -20,7 +20,7 @@ The Stats tab is the landing screen. It shows:
 
 - **Overview cards** — total problems, due today, mastered count, current streak
 - **Progress bars** — segmented bars showing attempted/mastered split per difficulty (Easy / Medium / Hard)
-- **Per-topic breakdown** — every topic with problem count, attempted count, and success rate; weakest topics surface first
+- **Per-topic breakdown** — every topic with problem count, mastered count, and due count; weakest topics surface first
 - **Currently practicing** — shown when a playlist or topic filter is active; displays filter name with due count
 
 ---

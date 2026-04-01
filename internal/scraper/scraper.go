@@ -170,16 +170,24 @@ func Scrape(b *Browser, platform, slug string) (ProblemMeta, error) {
 }
 
 func scrapeLeetCode(page *rod.Page) (ProblemMeta, error) {
-	var meta ProblemMeta
-
 	var raw string
 	if err := rod.Try(func() {
 		raw = page.MustElement(`script#__NEXT_DATA__`).MustText()
 	}); err != nil {
 		debuglog.Log("leetcode: __NEXT_DATA__ not found")
-		return meta, fmt.Errorf("could not find __NEXT_DATA__ on LeetCode page")
+		return ProblemMeta{}, fmt.Errorf("could not find __NEXT_DATA__ on LeetCode page")
 	}
 
+	meta, err := parseLeetCodeNextData(raw)
+	if err != nil {
+		debuglog.Log("leetcode: __NEXT_DATA__ found but parsing failed: %v", err)
+		return meta, err
+	}
+	debuglog.Log("leetcode: __NEXT_DATA__ succeeded (%s)", meta.Title)
+	return meta, nil
+}
+
+func parseLeetCodeNextData(raw string) (ProblemMeta, error) {
 	var nextData struct {
 		Props struct {
 			PageProps struct {
@@ -203,9 +211,10 @@ func scrapeLeetCode(page *rod.Page) (ProblemMeta, error) {
 	}
 
 	if err := json.Unmarshal([]byte(raw), &nextData); err != nil {
-		return meta, fmt.Errorf("failed to parse __NEXT_DATA__: %w", err)
+		return ProblemMeta{}, fmt.Errorf("failed to parse __NEXT_DATA__: %w", err)
 	}
 
+	var meta ProblemMeta
 	for _, q := range nextData.Props.PageProps.DehydratedState.Queries {
 		question := q.State.Data.Question
 		if question.Title == "" {
@@ -224,10 +233,8 @@ func scrapeLeetCode(page *rod.Page) (ProblemMeta, error) {
 	meta.Topics = dedup(meta.Topics)
 
 	if meta.Title == "" {
-		debuglog.Log("leetcode: __NEXT_DATA__ found but no title extracted")
 		return meta, fmt.Errorf("could not extract title from LeetCode __NEXT_DATA__")
 	}
-	debuglog.Log("leetcode: __NEXT_DATA__ succeeded (%s)", meta.Title)
 	return meta, nil
 }
 
@@ -318,7 +325,10 @@ func scrapeNeetCodeNgState(page *rod.Page) (ProblemMeta, error) {
 	}); err != nil {
 		return ProblemMeta{}, fmt.Errorf("ng-state not found")
 	}
+	return parseNeetCodeNgState(raw)
+}
 
+func parseNeetCodeNgState(raw string) (ProblemMeta, error) {
 	var state map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(raw), &state); err != nil {
 		return ProblemMeta{}, fmt.Errorf("failed to parse ng-state: %w", err)

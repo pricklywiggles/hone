@@ -19,7 +19,7 @@ hone/
 │   ├── platform/         URL parsing (ParseURL)
 │   ├── srs/              Pure SM-2 logic (UpdateEF, UpdateSRS, QualityFromDuration)
 │   ├── store/            All DB queries (PickNext, InsertProblem, SaveSRSState…)
-│   ├── scraper/          Headless Rod scraping (title, difficulty, topics)
+│   ├── scraper/          Headless scraping via external Chrome + Rod (title, difficulty, topics)
 │   ├── monitor/          Headful Rod browser monitor (submission result detection)
 │   ├── importer/         Playlist-format file parser (ParseImportFile)
 │   ├── backup/           Export + restore (ExportFullBackup, RestoreFromBackup)
@@ -45,7 +45,7 @@ sequenceDiagram
     User->>cmd/add: hone add <url>
     cmd/add->>platform: ParseURL(url)
     platform-->>cmd/add: platform, slug
-    cmd/add->>scraper: Scrape(platform, slug, profileDir)
+    cmd/add->>scraper: Scrape(browser, platform, slug)
     scraper-->>cmd/add: title, difficulty, topics
     cmd/add->>store: InsertProblem(...)
     store-->>cmd/add: problemID
