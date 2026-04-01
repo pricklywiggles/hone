@@ -127,6 +127,7 @@ The SM-2 easiness factor update is a single generic function: `EF' = EF + (0.1 -
 - `hone export --backup` — full JSON dump of all data (problems, SRS state, attempts, playlists, config)
 - `hone init BACKUPFILE` — restore from a `--backup` JSON file; only works if DB doesn't exist yet
 - `hone playlist create|select|list` — manage playlists
+- `hone auth [platform]` — save a browser session for scraping authenticated pages
 - `hone stats` — statistics dashboard (same as no-args)
 - `hone topics` — list/filter by topic
 

@@ -63,6 +63,38 @@ func TestGeeksForGeeksSlugFromPath(t *testing.T) {
 	}
 }
 
+func TestClassifyGfgResult(t *testing.T) {
+	tests := []struct {
+		name        string
+		text        string
+		wantSuccess bool
+		wantFound   bool
+	}{
+		{"success", "Problem Solved Successfully", true, true},
+		{"success mixed case", "problem solved successfully", true, true},
+		{"success with surrounding text", "Congratulations! Problem Solved Successfully in 0.2s", true, true},
+		{"wrong answer", "Wrong Answer. !!!", false, true},
+		{"compilation error", "Compilation Error", false, true},
+		{"time limit exceeded", "Time Limit Exceeded", false, true},
+		{"runtime error", "Runtime Error (SIGSEGV)", false, true},
+		{"memory limit exceeded", "Memory Limit Exceeded", false, true},
+		{"failure case insensitive", "wrong answer", false, true},
+		{"loading: request queued", "Request Queued", false, false},
+		{"loading: ready for evaluation", "Ready for evaluation", false, false},
+		{"loading: test cases", "Test Cases Processed: 0/111", false, false},
+		{"empty text", "", false, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			success, found := classifyGfgResult(tc.text)
+			if success != tc.wantSuccess || found != tc.wantFound {
+				t.Errorf("classifyGfgResult(%q) = (%v, %v), want (%v, %v)",
+					tc.text, success, found, tc.wantSuccess, tc.wantFound)
+			}
+		})
+	}
+}
+
 func TestParseGeeksForGeeks(t *testing.T) {
 	t.Run("valid with topics", func(t *testing.T) {
 		raw := `{

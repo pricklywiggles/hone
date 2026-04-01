@@ -61,32 +61,43 @@ func (GeeksForGeeks) Scrape(page *rod.Page) (ProblemMeta, error) {
 
 // ── Monitor selectors ───────────────────────────────────────────────────────
 //
-// GFG submission results appear in the IDE panel after code submission.
-// These selectors need manual verification against the live site.
+// GFG shows an Output Window overlay after submission with an h3 containing
+// either "Problem Solved Successfully" or an error like "Wrong Answer. !!!".
+// Icon classes (Semantic UI) serve as fallbacks if the hashed container class changes.
 
-var gfgSuccess = []string{
-	"[data-cy='submission-result-accepted']",
-	".problems_header_description__t8DR7.text-green-600",
-	".result_accepted",
+var gfgFailureKeywords = []string{
+	"wrong answer",
+	"compilation error",
+	"time limit exceeded",
+	"runtime error",
+	"memory limit exceeded",
 }
-var gfgFailure = []string{
-	"[data-cy='submission-result-wrong']",
-	".problems_header_description__t8DR7.text-red-600",
-	".result_wrong",
+
+var gfgResult = []string{
+	"[class*='problems_output_window'] h3",
+	"h3:has(> i.check.circle.icon)",
+	"h3:has(> i.exclamation.circle.icon)",
 }
 
 func (GeeksForGeeks) DetectResult(page *rod.Page) (bool, bool) {
-	if ElementPresent(page, gfgSuccess...) {
+	return classifyGfgResult(TextOf(page, gfgResult...))
+}
+
+func classifyGfgResult(text string) (success, found bool) {
+	lower := strings.ToLower(text)
+	if strings.Contains(lower, "problem solved successfully") {
 		return true, true
 	}
-	if ElementPresent(page, gfgFailure...) {
-		return false, true
+	for _, fail := range gfgFailureKeywords {
+		if strings.Contains(lower, fail) {
+			return false, true
+		}
 	}
 	return false, false
 }
 
 func (GeeksForGeeks) ResultIndicatorText(page *rod.Page) string {
-	return ElementExists(page, gfgSuccess, gfgFailure)
+	return TextOf(page, gfgResult...)
 }
 
 // ── Pure parsing (testable without browser) ─────────────────────────────────

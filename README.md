@@ -4,7 +4,7 @@
 
 **Practice coding problems with spaced repetition — from your terminal.**
 
-hone schedules LeetCode and NeetCode problems using the SM-2 algorithm, opens them in your browser, detects submission results automatically, and tells you exactly when to revisit each one. No self-reporting, no manual ratings — just solve the problem and hone tracks the rest.
+hone schedules LeetCode, NeetCode, and GeeksForGeeks problems using the SM-2 algorithm, opens them in your browser, detects submission results automatically, and tells you exactly when to revisit each one. No self-reporting, no manual ratings — just solve the problem and hone tracks the rest.
 
 ---
 
@@ -90,7 +90,7 @@ Press `p` from any tab to start a practice session on the current filter. Use `�
 | `hone export --backup` | Full JSON backup (SRS state, attempts, playlists) |
 | `hone init backup.json` | Restore from a JSON backup |
 | `hone playlist create\|list\|select` | Manage playlists |
-| `hone auth neetcode\|leetcode` | Save a browser session for a platform |
+| `hone auth neetcode\|leetcode\|geeksforgeeks` | Save a browser session for a platform |
 
 ---
 
