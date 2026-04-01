@@ -132,13 +132,21 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg { return PushMsg{Model: add} }
 			}
 		case "1":
-			return m.switchTab(tabStats)
+			if !m.activeTabFiltering() {
+				return m.switchTab(tabStats)
+			}
 		case "2":
-			return m.switchTab(tabProblems)
+			if !m.activeTabFiltering() {
+				return m.switchTab(tabProblems)
+			}
 		case "3":
-			return m.switchTab(tabPlaylists)
+			if !m.activeTabFiltering() {
+				return m.switchTab(tabPlaylists)
+			}
 		case "4":
-			return m.switchTab(tabTopics)
+			if !m.activeTabFiltering() {
+				return m.switchTab(tabTopics)
+			}
 		case "left":
 			if !m.activeTabFiltering() {
 				prev := (int(m.active) - 1 + 4) % 4
@@ -274,7 +282,6 @@ func (m DashboardModel) activeTabFiltering() bool {
 	return false
 }
 
-// isFiltering exposes whether the playlist hub's filter is active (used by dashboard q key).
 func (m PlaylistHubModel) isFiltering() bool {
 	return m.list.FilterState() == 1 // list.Filtering = 1
 }

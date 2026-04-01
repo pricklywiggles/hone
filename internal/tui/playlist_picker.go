@@ -222,7 +222,11 @@ func (m PlaylistPickerModel) View() string {
 	b.WriteString("\n  ")
 	b.WriteString(statsSectionStyle.Render(fmt.Sprintf(`Add problems to "%s"`, m.playlistName)))
 	b.WriteString("\n\n  ")
-	b.WriteString(m.filterInput.View())
+	if m.filtering {
+		b.WriteString(m.filterInput.View())
+	} else {
+		b.WriteString(pickerUncheckedStyle.Render("press / to search"))
+	}
 	b.WriteString("\n\n")
 
 	// Compute visible window
