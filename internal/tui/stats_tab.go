@@ -367,14 +367,6 @@ func (m StatsTabModel) renderScrollableContent() string {
 				barSegment{value: notMastered, color: barAttemptColor},
 			)
 
-			var rateStr string
-			if t.SuccessRate < 0 {
-				rateStr = statsDimStyle.Render("   — ")
-			} else {
-				pct := int(t.SuccessRate * 100)
-				rateStr = lipgloss.NewStyle().Foreground(rateColor(pct)).Render(fmt.Sprintf(" %3d%%", pct))
-			}
-
 			ratio := statsDimStyle.Render(fmt.Sprintf("  %3d/%-3d", t.Mastered, t.Total))
 
 			dueStr := "          "
@@ -382,7 +374,7 @@ func (m StatsTabModel) renderScrollableContent() string {
 				dueStr = "  " + lipgloss.NewStyle().Foreground(colorWarning).Render(fmt.Sprintf("%d due", t.DueToday))
 			}
 
-			b.WriteString(name + "  " + bar + rateStr + ratio + dueStr + "\n")
+			b.WriteString(name + "  " + bar + ratio + dueStr + "\n")
 		}
 	}
 
