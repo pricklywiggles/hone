@@ -4,7 +4,28 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/go-rod/rod"
 )
+
+// ProblemMeta holds the metadata scraped from a problem page.
+type ProblemMeta struct {
+	Title      string
+	Difficulty string   // "easy", "medium", or "hard"
+	Topics     []string // normalized: lowercase, dashes replaced with spaces
+}
+
+// Platform defines the behaviour each coding-problem site must implement.
+type Platform interface {
+	Name() string
+	Hostnames() []string
+	SlugFromPath(path string) (string, error)
+	URLTemplate() string
+	ExtraWait(page *rod.Page) error
+	Scrape(page *rod.Page) (ProblemMeta, error)
+	DetectResult(page *rod.Page) (success bool, found bool)
+	ResultIndicatorText(page *rod.Page) string
+}
 
 // ParseURL extracts platform and slug from a LeetCode or NeetCode URL.
 // Returns error for unrecognized URLs.
