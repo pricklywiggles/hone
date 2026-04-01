@@ -215,7 +215,6 @@ func newTopicsTable(_ [][]string, height int) colorTable {
 		{title: "Total", width: 6},
 		{title: "Mastered", width: 9},
 		{title: "Due", width: 5},
-		{title: "Rate", width: 6},
 	}, height)
 }
 
@@ -230,12 +229,6 @@ func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 			barSegment{value: r.Mastered, color: barMasteredColor},
 			barSegment{value: notMastered, color: barAttemptColor},
 		)
-
-		rateStr := statsDimStyle.Render("—")
-		if r.SuccessRate >= 0 {
-			pct := int(r.SuccessRate * 100)
-			rateStr = lipgloss.NewStyle().Foreground(rateColor(pct)).Render(fmt.Sprintf("%d%%", pct))
-		}
 
 		dueStr := statsDimStyle.Render("—")
 		if r.DueToday > 0 {
@@ -252,7 +245,6 @@ func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 			fmt.Sprintf("%d", r.Total),
 			fmt.Sprintf("%d", r.Mastered),
 			dueStr,
-			rateStr,
 		}
 	}
 	return out
