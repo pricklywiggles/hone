@@ -81,7 +81,7 @@ func NewPracticeModel(
 }
 
 func (m PracticeModel) Init() tea.Cmd {
-	url := platformURL(m.problem.Platform, m.problem.Slug)
+	url := config.BuildURL(m.problem.Platform, m.problem.Slug)
 	return tea.Batch(
 		tickCmd(),
 		waitForResult(m.ctx, m.problem.Platform, url, m.profileDir),
@@ -130,7 +130,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = practiceWaiting
 		m.ctx = ctx
 		m.cancelFn = cancel
-		url := platformURL(m.problem.Platform, m.problem.Slug)
+		url := config.BuildURL(m.problem.Platform, m.problem.Slug)
 		return m, tea.Batch(tickCmd(), waitForResult(ctx, m.problem.Platform, url, m.profileDir))
 
 	case practiceNoNextMsg:
@@ -289,15 +289,4 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
 	}
 	return fmt.Sprintf("%d:%02d", m, s)
-}
-
-func platformURL(platform, slug string) string {
-	switch platform {
-	case "leetcode":
-		return "https://leetcode.com/problems/" + slug + "/"
-	case "neetcode":
-		return "https://neetcode.io/problems/" + slug + "/question"
-	default:
-		return ""
-	}
 }

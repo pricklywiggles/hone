@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/pricklywiggles/hone/internal/srs"
 	"github.com/spf13/viper"
 )
@@ -152,6 +153,7 @@ func setDefaults() {
 	viper.SetDefault("thresholds.hard.fast", 20)
 	viper.SetDefault("thresholds.hard.normal", 40)
 
-	viper.SetDefault("platforms.leetcode.url_template", "https://leetcode.com/problems/{{slug}}/")
-	viper.SetDefault("platforms.neetcode.url_template", "https://neetcode.io/problems/{{slug}}/question")
+	for key, val := range platform.Defaults() {
+		viper.SetDefault(key, val)
+	}
 }
