@@ -214,7 +214,7 @@ func scrapeLeetCode(page *rod.Page) (ProblemMeta, error) {
 		meta.Title = strings.TrimSpace(question.Title)
 		meta.Difficulty = strings.ToLower(strings.TrimSpace(question.Difficulty))
 		for _, tag := range question.TopicTags {
-			name := strings.TrimSpace(strings.ToLower(tag.Name))
+			name := strings.ReplaceAll(strings.TrimSpace(strings.ToLower(tag.Name)), "-", " ")
 			if name != "" {
 				meta.Topics = append(meta.Topics, name)
 			}
