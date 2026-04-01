@@ -28,14 +28,14 @@ type batchItem struct {
 	url   string
 	state batchItemState
 	plat  string
-	meta  scraper.ProblemMeta
+	meta  platform.ProblemMeta
 	err   error
 }
 
 type batchResultMsg struct {
 	index int
 	plat  string
-	meta  scraper.ProblemMeta
+	meta  platform.ProblemMeta
 }
 
 type batchErrMsg struct {

@@ -26,7 +26,7 @@ const (
 
 type scrapeResultMsg struct {
 	plat string
-	meta scraper.ProblemMeta
+	meta platform.ProblemMeta
 }
 
 type scrapeErrMsg struct{ err error }
