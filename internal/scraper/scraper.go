@@ -3,13 +3,16 @@ package scraper
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/launcher"
 	"github.com/pricklywiggles/hone/internal/debuglog"
 	"github.com/spf13/viper"
 )
@@ -20,8 +23,73 @@ type ProblemMeta struct {
 	Topics     []string // e.g. ["array", "hash-table"]
 }
 
+// launchChrome starts Chrome via exec.Command with --headless=new and a remote
+// debugging port, then returns the DevTools WebSocket URL for Rod to connect.
+// We launch externally (not via Rod's launcher) so Chrome can access the macOS
+// Keychain to decrypt cookies saved during `hone auth`.
+func launchChrome(chromePath, profileDir string) (wsURL string, cleanup func(), err error) {
+	port, err := freePort()
+	if err != nil {
+		return "", nil, fmt.Errorf("find free port: %w", err)
+	}
+
+	cmd := exec.Command(chromePath,
+		"--headless=new",
+		fmt.Sprintf("--remote-debugging-port=%d", port),
+		fmt.Sprintf("--user-data-dir=%s", profileDir),
+		"--no-first-run",
+		"--no-default-browser-check",
+	)
+	if err := cmd.Start(); err != nil {
+		return "", nil, fmt.Errorf("start chrome: %w", err)
+	}
+
+	debugURL := fmt.Sprintf("http://127.0.0.1:%d/json/version", port)
+	var ws string
+	for range 30 {
+		time.Sleep(200 * time.Millisecond)
+		resp, err := http.Get(debugURL)
+		if err != nil {
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		var info struct {
+			WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+		}
+		if json.Unmarshal(body, &info) == nil && info.WebSocketDebuggerURL != "" {
+			ws = info.WebSocketDebuggerURL
+			break
+		}
+	}
+	if ws == "" {
+		cmd.Process.Kill()
+		cmd.Wait()
+		return "", nil, fmt.Errorf("chrome did not expose debug endpoint on port %d", port)
+	}
+
+	debuglog.Log("scrape: chrome started on port %d", port)
+	return ws, func() {
+		cmd.Process.Kill()
+		cmd.Wait()
+		for _, f := range []string{"SingletonLock", "SingletonSocket", "SingletonCookie"} {
+			os.Remove(filepath.Join(profileDir, f))
+		}
+	}, nil
+}
+
+func freePort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	return port, nil
+}
+
 // Scrape fetches problem metadata from the platform page for the given slug.
-// Uses headless Rod with the persistent browser profile. Timeout: 30 seconds.
+// Launches headless Chrome with the persistent browser profile. Timeout: 30 seconds.
 func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 	tmpl := viper.GetString("platforms." + platform + ".url_template")
 	if tmpl == "" {
@@ -30,7 +98,11 @@ func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 	pageURL := strings.ReplaceAll(tmpl, "{{slug}}", slug)
 
 	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-	u := launcher.New().Bin(chromePath).UserDataDir(profileDir).Headless(true).MustLaunch()
+	u, killChrome, err := launchChrome(chromePath, profileDir)
+	if err != nil {
+		return ProblemMeta{}, fmt.Errorf("launch browser: %w", err)
+	}
+	defer killChrome()
 	browser := rod.New().ControlURL(u).MustConnect()
 	defer browser.MustClose()
 
@@ -40,7 +112,10 @@ func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
 	if err := page.WaitLoad(); err != nil {
 		return ProblemMeta{}, fmt.Errorf("page load timeout: %w", err)
 	}
-	_ = page.WaitIdle(2 * time.Second)
+	_ = page.WaitIdle(5 * time.Second)
+	if platform == "neetcode" {
+		time.Sleep(3 * time.Second)
+	}
 
 	debuglog.Log("scrape: start %s/%s", platform, slug)
 
