@@ -50,6 +50,8 @@ platforms:
     url_template: "https://leetcode.com/problems/{{slug}}/"
   neetcode:
     url_template: "https://neetcode.io/problems/{{slug}}/question"
+  geeksforgeeks:
+    url_template: "https://www.geeksforgeeks.org/problems/{{slug}}/1"
 ```
 
 The `{{slug}}` placeholder is replaced with the problem slug (e.g. `two-sum`).
@@ -88,6 +90,8 @@ platforms:
     url_template: "https://leetcode.com/problems/{{slug}}/"
   neetcode:
     url_template: "https://neetcode.io/problems/{{slug}}/question"
+  geeksforgeeks:
+    url_template: "https://www.geeksforgeeks.org/problems/{{slug}}/1"
 
 active_playlist_id: 0
 active_topic_id: 0

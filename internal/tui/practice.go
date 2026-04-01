@@ -22,6 +22,7 @@ type practiceState int
 const (
 	practiceWaiting practiceState = iota
 	practiceDone
+	practiceError
 )
 
 // ── Messages ──────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ type PracticeModel struct {
 	isDue           bool
 	startedAt       time.Time
 	result          *monitor.Result
+	monitorErr      error
 	nextDate        string
 	cancelFn        context.CancelFunc
 	ctx             context.Context
@@ -81,7 +83,7 @@ func NewPracticeModel(
 }
 
 func (m PracticeModel) Init() tea.Cmd {
-	url := platformURL(m.problem.Platform, m.problem.Slug)
+	url := config.BuildURL(m.problem.Platform, m.problem.Slug)
 	return tea.Batch(
 		tickCmd(),
 		waitForResult(m.ctx, m.problem.Platform, url, m.profileDir),
@@ -111,6 +113,12 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case practiceResultMsg:
 		r := monitor.Result(msg)
+		if r.Err != nil {
+			m.monitorErr = r.Err
+			m.state = practiceError
+			m.cancelFn()
+			return m, nil
+		}
 		m.result = &r
 		m.state = practiceDone
 		m.cancelFn()
@@ -130,7 +138,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = practiceWaiting
 		m.ctx = ctx
 		m.cancelFn = cancel
-		url := platformURL(m.problem.Platform, m.problem.Slug)
+		url := config.BuildURL(m.problem.Platform, m.problem.Slug)
 		return m, tea.Batch(tickCmd(), waitForResult(ctx, m.problem.Platform, url, m.profileDir))
 
 	case practiceNoNextMsg:
@@ -216,10 +224,14 @@ var (
 )
 
 func (m PracticeModel) View() string {
-	if m.state == practiceDone {
+	switch m.state {
+	case practiceDone:
 		return m.viewDone()
+	case practiceError:
+		return m.viewError()
+	default:
+		return m.viewWaiting()
 	}
-	return m.viewWaiting()
 }
 
 func (m PracticeModel) viewWaiting() string {
@@ -278,6 +290,25 @@ func (m PracticeModel) viewDone() string {
 	return "\n" + card + "\n\n  " + m.help.View(practiceDoneKeyMap{})
 }
 
+func (m PracticeModel) viewError() string {
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		prFailStyle.Render("Monitor Error"),
+		"",
+		prDimStyle.Render(m.monitorErr.Error()),
+		"",
+		prDimStyle.Render("Press q to go back."),
+	)
+
+	card := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorDanger).
+		Padding(1, 3).
+		Width(52).
+		Render(content)
+
+	return "\n" + card
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 func formatDuration(d time.Duration) string {
@@ -289,15 +320,4 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
 	}
 	return fmt.Sprintf("%d:%02d", m, s)
-}
-
-func platformURL(platform, slug string) string {
-	switch platform {
-	case "leetcode":
-		return "https://leetcode.com/problems/" + slug + "/"
-	case "neetcode":
-		return "https://neetcode.io/problems/" + slug + "/question"
-	default:
-		return ""
-	}
 }

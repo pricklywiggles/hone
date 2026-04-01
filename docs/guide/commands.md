@@ -41,7 +41,7 @@ hone add https://neetcode.io/problems/two-sum/question
 hone add https://leetcode.com/problems/climbing-stairs/
 ```
 
-Supported platforms: **NeetCode**, **LeetCode**.
+Supported platforms: **NeetCode**, **LeetCode**, **GeeksForGeeks**.
 
 ### Batch add
 
@@ -155,6 +155,7 @@ Open a browser window to log in to a problem platform. The session is saved in t
 ```sh
 hone auth neetcode
 hone auth leetcode
+hone auth geeksforgeeks
 ```
 
 ---

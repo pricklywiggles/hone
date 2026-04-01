@@ -33,7 +33,7 @@ A sortable, filterable table of all problems in your library.
 |--------|-------------|
 | Title | Problem name |
 | Difficulty | easy / medium / hard |
-| Platform | leetcode / neetcode |
+| Platform | leetcode / neetcode / geeksforgeeks |
 | Next review | Scheduled date (highlighted if overdue) |
 | Attempts | Total attempt count |
 | Successes | Number of successful submissions |

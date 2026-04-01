@@ -1,8 +1,63 @@
-package scraper
+package platform
 
 import (
 	"testing"
 )
+
+func TestLeetCodeName(t *testing.T) {
+	lc := LeetCode{}
+	if lc.Name() != "leetcode" {
+		t.Errorf("Name = %q, want %q", lc.Name(), "leetcode")
+	}
+}
+
+func TestLeetCodeHostnames(t *testing.T) {
+	lc := LeetCode{}
+	hosts := lc.Hostnames()
+	want := map[string]bool{"leetcode.com": true, "www.leetcode.com": true}
+	for _, h := range hosts {
+		if !want[h] {
+			t.Errorf("unexpected hostname %q", h)
+		}
+		delete(want, h)
+	}
+	for h := range want {
+		t.Errorf("missing hostname %q", h)
+	}
+}
+
+func TestLeetCodeSlugFromPath(t *testing.T) {
+	lc := LeetCode{}
+	tests := []struct {
+		name    string
+		path    string
+		want    string
+		wantErr bool
+	}{
+		{"basic", "/problems/two-sum/", "two-sum", false},
+		{"with trailing segment", "/problems/two-sum/description/", "two-sum", false},
+		{"no problems prefix", "/contest/two-sum/", "", true},
+		{"empty slug", "/problems//", "", true},
+		{"too short", "/problems", "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := lc.SlugFromPath(tc.path)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got slug=%q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("slug = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestParseLeetCodeNextData(t *testing.T) {
 	t.Run("valid with dashed topics", func(t *testing.T) {
@@ -83,77 +138,6 @@ func TestParseLeetCodeNextData(t *testing.T) {
 		_, err := parseLeetCodeNextData(`{not valid json`)
 		if err == nil {
 			t.Error("expected error for malformed JSON")
-		}
-	})
-}
-
-func TestParseNeetCodeNgState(t *testing.T) {
-	t.Run("valid problem key", func(t *testing.T) {
-		raw := `{
-			"some-other-key": {},
-			"problem-two-sum": {"name": "Two Sum", "difficulty": "Easy"}
-		}`
-		meta, err := parseNeetCodeNgState(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if meta.Title != "Two Sum" {
-			t.Errorf("Title = %q, want %q", meta.Title, "Two Sum")
-		}
-		if meta.Difficulty != "easy" {
-			t.Errorf("Difficulty = %q, want %q", meta.Difficulty, "easy")
-		}
-	})
-
-	t.Run("no problem keys returns error", func(t *testing.T) {
-		raw := `{"user-data": {"name": "test"}, "config": {}}`
-		_, err := parseNeetCodeNgState(raw)
-		if err == nil {
-			t.Error("expected error when no problem-* keys exist")
-		}
-	})
-
-	t.Run("empty name skipped", func(t *testing.T) {
-		raw := `{"problem-empty": {"name": "", "difficulty": "Easy"}}`
-		_, err := parseNeetCodeNgState(raw)
-		if err == nil {
-			t.Error("expected error when problem name is empty")
-		}
-	})
-
-	t.Run("malformed JSON returns error", func(t *testing.T) {
-		_, err := parseNeetCodeNgState(`not json`)
-		if err == nil {
-			t.Error("expected error for malformed JSON")
-		}
-	})
-}
-
-func TestDedup(t *testing.T) {
-	t.Run("removes duplicates", func(t *testing.T) {
-		got := dedup([]string{"a", "b", "a", "c", "b"})
-		want := []string{"a", "b", "c"}
-		if len(got) != len(want) {
-			t.Fatalf("got %v, want %v", got, want)
-		}
-		for i := range want {
-			if got[i] != want[i] {
-				t.Errorf("got[%d] = %q, want %q", i, got[i], want[i])
-			}
-		}
-	})
-
-	t.Run("empty input", func(t *testing.T) {
-		got := dedup([]string{})
-		if len(got) != 0 {
-			t.Errorf("got %v, want empty", got)
-		}
-	})
-
-	t.Run("no duplicates unchanged", func(t *testing.T) {
-		got := dedup([]string{"x", "y", "z"})
-		if len(got) != 3 {
-			t.Errorf("got %v, want 3 elements", got)
 		}
 	})
 }
