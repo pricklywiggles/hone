@@ -32,7 +32,8 @@ var addCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			return writeFailedURLs(final.(tui.BatchAddModel).FailedURLs())
+			printFailedSummary(final.(tui.BatchAddModel).FailedURLs())
+			return nil
 		}
 
 		url := ""
@@ -45,16 +46,11 @@ var addCmd = &cobra.Command{
 	},
 }
 
-func writeFailedURLs(urls []string) error {
+func printFailedSummary(urls []string) {
 	if len(urls) == 0 {
-		return nil
+		return
 	}
-	err := os.WriteFile("failed_urls.txt", []byte(strings.Join(urls, "\n")+"\n"), 0644)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("\nWrote %d failed URL(s) to failed_urls.txt\n", len(urls))
-	return nil
+	fmt.Printf("\n%d URL(s) failed. See %s\n", len(urls), config.FailedURLsPath())
 }
 
 func readURLFile(path string) ([]string, error) {

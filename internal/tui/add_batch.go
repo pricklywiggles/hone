@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jmoiron/sqlx"
+	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/pricklywiggles/hone/internal/scraper"
 	"github.com/pricklywiggles/hone/internal/store"
@@ -152,6 +153,7 @@ func (m BatchAddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.skipped++
 		} else {
 			m.failed++
+			config.AppendFailedURL(m.items[msg.index].url)
 		}
 		return m, m.startNext(msg.index)
 	}

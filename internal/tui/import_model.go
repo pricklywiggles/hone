@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jmoiron/sqlx"
+	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/importer"
 	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/pricklywiggles/hone/internal/scraper"
@@ -192,6 +193,7 @@ func (m ImportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		item.state = importFailed
 		item.err = msg.err
 		m.failed++
+		config.AppendFailedURL(item.url)
 		return m, m.advanceProgress(msg.index)
 	}
 
