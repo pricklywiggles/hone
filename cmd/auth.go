@@ -28,7 +28,8 @@ var authCmd = &cobra.Command{
 			return fmt.Errorf("unsupported platform %q", platform)
 		}
 		loginURLs := map[string]string{
-			"leetcode": "https://leetcode.com/accounts/login/",
+			"leetcode":       "https://leetcode.com/accounts/login/",
+			"geeksforgeeks":  "https://auth.geeksforgeeks.org/",
 		}
 		loginURL := loginURLs[platform]
 		if loginURL == "" {
