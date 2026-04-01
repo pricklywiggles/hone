@@ -22,6 +22,7 @@ type practiceState int
 const (
 	practiceWaiting practiceState = iota
 	practiceDone
+	practiceError
 )
 
 // ── Messages ──────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ type PracticeModel struct {
 	isDue           bool
 	startedAt       time.Time
 	result          *monitor.Result
+	monitorErr      error
 	nextDate        string
 	cancelFn        context.CancelFunc
 	ctx             context.Context
@@ -111,6 +113,12 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case practiceResultMsg:
 		r := monitor.Result(msg)
+		if r.Err != nil {
+			m.monitorErr = r.Err
+			m.state = practiceError
+			m.cancelFn()
+			return m, nil
+		}
 		m.result = &r
 		m.state = practiceDone
 		m.cancelFn()
@@ -216,10 +224,14 @@ var (
 )
 
 func (m PracticeModel) View() string {
-	if m.state == practiceDone {
+	switch m.state {
+	case practiceDone:
 		return m.viewDone()
+	case practiceError:
+		return m.viewError()
+	default:
+		return m.viewWaiting()
 	}
-	return m.viewWaiting()
 }
 
 func (m PracticeModel) viewWaiting() string {
@@ -276,6 +288,25 @@ func (m PracticeModel) viewDone() string {
 		Render(content)
 
 	return "\n" + card + "\n\n  " + m.help.View(practiceDoneKeyMap{})
+}
+
+func (m PracticeModel) viewError() string {
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		prFailStyle.Render("Monitor Error"),
+		"",
+		prDimStyle.Render(m.monitorErr.Error()),
+		"",
+		prDimStyle.Render("Press q to go back."),
+	)
+
+	card := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorDanger).
+		Padding(1, 3).
+		Width(52).
+		Render(content)
+
+	return "\n" + card
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

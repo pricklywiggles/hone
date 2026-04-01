@@ -24,6 +24,7 @@ Implement all methods of the `Platform` interface:
 | `Hostnames()` | All hostname variants (e.g. `["newplatform.com", "www.newplatform.com"]`) |
 | `SlugFromPath(path)` | Extract problem slug from URL path |
 | `URLTemplate()` | Default URL template with `{{slug}}` placeholder |
+| `LoginURL()` | URL for `hone auth` to open (e.g. the platform's login page) |
 | `ExtraWait(page)` | Post-load delay if needed (no-op for most platforms) |
 | `Scrape(page)` | Extract title, difficulty, topics from a loaded page |
 | `DetectResult(page)` | Check for submission verdict (success/failure) |
@@ -48,7 +49,9 @@ Topic names must normalize dashes to spaces and lowercase (e.g. `"Breadth-First-
 
 ### Monitor pattern
 
-Define success/failure CSS selector slices, then use the shared DOM helpers:
+There are two approaches depending on the platform's DOM:
+
+**Element-presence** — when success and failure have distinct CSS selectors (e.g. NeetCode):
 
 ```go
 var newplatformSuccess = []string{".result-accepted"}
@@ -64,6 +67,31 @@ func (NewPlatform) ResultIndicatorText(page *rod.Page) string {
     return ElementExists(page, newplatformSuccess, newplatformFailure)
 }
 ```
+
+**Text-based** — when results share the same element and you distinguish by content (e.g. LeetCode, GeeksForGeeks). If the platform shows loading states before the final result, match on explicit keywords to avoid false positives:
+
+```go
+var newplatformResult = []string{".result-heading"}
+
+func (NewPlatform) DetectResult(page *rod.Page) (bool, bool) {
+    return classifyNewPlatformResult(TextOf(page, newplatformResult...))
+}
+
+func classifyNewPlatformResult(text string) (success, found bool) {
+    lower := strings.ToLower(text)
+    if strings.Contains(lower, "accepted") { return true, true }
+    for _, kw := range []string{"wrong answer", "time limit exceeded"} {
+        if strings.Contains(lower, kw) { return false, true }
+    }
+    return false, false  // loading state or empty — keep polling
+}
+
+func (NewPlatform) ResultIndicatorText(page *rod.Page) string {
+    return TextOf(page, newplatformResult...)
+}
+```
+
+Extract the classification into a pure function (like `classifyNewPlatformResult` above) so it can be unit tested without a browser.
 
 ---
 

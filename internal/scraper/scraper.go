@@ -127,9 +127,6 @@ func Scrape(b *Browser, platformName, slug string) (platform.ProblemMeta, error)
 	}
 
 	tmpl := viper.GetString("platforms." + platformName + ".url_template")
-	if tmpl == "" {
-		tmpl = p.URLTemplate()
-	}
 	pageURL := strings.ReplaceAll(tmpl, "{{slug}}", slug)
 
 	var page *rod.Page
