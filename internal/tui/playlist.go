@@ -225,11 +225,9 @@ func (m PlaylistHubModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMsg = hubOKStyle.Render(fmt.Sprintf("✓ %d added, %d removed", msg.added, msg.removed))
 		return m, loadPlaylists(m.db)
 
-	case PopMsg:
-		if m.state == hubPicker {
-			m.state = hubList
-			return m, nil
-		}
+	case playlistPickerCancelMsg:
+		m.state = hubList
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height

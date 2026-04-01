@@ -15,6 +15,9 @@ import (
 // playlistPickerDoneMsg is sent when the user confirms their selection.
 type playlistPickerDoneMsg struct{ added, removed int }
 
+// playlistPickerCancelMsg is sent when the user cancels (esc without filter active).
+type playlistPickerCancelMsg struct{}
+
 // problemAddedMsg is sent by AddModel (embedded) after a problem is saved,
 // so the picker can reload its list to include the newly added problem.
 type problemAddedMsg struct{}
@@ -42,6 +45,7 @@ type PlaylistPickerModel struct {
 	selected     []bool
 	visible      []int
 	cursor       int
+	filtering    bool
 	filterInput  textinput.Model
 	height       int
 	db           *sqlx.DB
@@ -67,7 +71,7 @@ func NewPlaylistPickerModel(db *sqlx.DB, profileDir string, playlistID int, play
 }
 
 func (m PlaylistPickerModel) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, m.loadCmd())
+	return m.loadCmd()
 }
 
 func (m PlaylistPickerModel) loadCmd() tea.Cmd {
@@ -112,13 +116,25 @@ func (m PlaylistPickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m PlaylistPickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
+	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
+	}
+	if m.filtering {
+		return m.handleFilterKey(msg)
+	}
+	return m.handleNormalKey(msg)
+}
 
+func (m PlaylistPickerModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
 	case "esc":
-		// Handled by the parent (PlaylistHubModel intercepts PopMsg).
-		return m, Pop()
+		return m, func() tea.Msg { return playlistPickerCancelMsg{} }
+
+	case "/":
+		m.filtering = true
+		m.filterInput.SetValue("")
+		m.filterInput.Focus()
+		return m, textinput.Blink
 
 	case "up", "k":
 		if m.cursor > 0 {
@@ -143,16 +159,31 @@ func (m PlaylistPickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		return m, m.confirmCmd()
-
-	default:
-		var cmd tea.Cmd
-		m.filterInput, cmd = m.filterInput.Update(msg)
-		m.rebuildVisible()
-		m.cursor = 0
-		return m, cmd
 	}
 
 	return m, nil
+}
+
+func (m PlaylistPickerModel) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.filtering = false
+		m.filterInput.SetValue("")
+		m.filterInput.Blur()
+		m.rebuildVisible()
+		m.cursor = 0
+		return m, nil
+	case tea.KeyEnter:
+		m.filtering = false
+		m.filterInput.Blur()
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.filterInput, cmd = m.filterInput.Update(msg)
+	m.rebuildVisible()
+	m.cursor = 0
+	return m, cmd
 }
 
 func (m PlaylistPickerModel) confirmCmd() tea.Cmd {
