@@ -86,7 +86,12 @@ func (m AddModel) doScrape(rawURL string) tea.Cmd {
 		if err != nil {
 			return scrapeErrMsg{fmt.Errorf("parsing URL: %w", err)}
 		}
-		meta, err := scraper.Scrape(plat, slug, m.profileDir)
+		browser, err := scraper.NewBrowser(m.profileDir)
+		if err != nil {
+			return scrapeErrMsg{fmt.Errorf("browser: %w", err)}
+		}
+		defer browser.Close()
+		meta, err := scraper.Scrape(browser, plat, slug)
 		if err != nil {
 			return scrapeErrMsg{fmt.Errorf("scraping: %w", err)}
 		}

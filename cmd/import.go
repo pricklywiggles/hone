@@ -51,6 +51,7 @@ Example file:
 		if err != nil {
 			return err
 		}
-		return writeFailedURLs(final.(tui.ImportModel).FailedURLs())
+		printFailedSummary(final.(tui.ImportModel).FailedURLs())
+		return nil
 	},
 }

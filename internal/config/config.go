@@ -45,6 +45,19 @@ func DataDir() string {
 	return filepath.Join(homeDir, ".local", "share", "hone")
 }
 
+func FailedURLsPath() string {
+	return filepath.Join(DataDir(), "failed_urls.txt")
+}
+
+func AppendFailedURL(url string) {
+	f, err := os.OpenFile(FailedURLsPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	f.WriteString(url + "\n")
+}
+
 func BrowserProfileDir() string {
 	homeDir, _ := os.UserHomeDir()
 	return filepath.Join(homeDir, ".local", "share", "hone", "browser-profile")

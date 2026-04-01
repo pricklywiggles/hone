@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jmoiron/sqlx"
+	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/pricklywiggles/hone/internal/scraper"
 	"github.com/pricklywiggles/hone/internal/store"
@@ -42,6 +43,11 @@ type batchErrMsg struct {
 	err   error
 }
 
+type batchBrowserReadyMsg struct {
+	browser *scraper.Browser
+	err     error
+}
+
 type BatchAddModel struct {
 	items      []batchItem
 	current    int
@@ -52,6 +58,7 @@ type BatchAddModel struct {
 	failed     int
 	db         *sqlx.DB
 	profileDir string
+	browser    *scraper.Browser
 }
 
 func NewBatchAddModel(db *sqlx.DB, profileDir string, urls []string) BatchAddModel {
@@ -83,7 +90,10 @@ func (m BatchAddModel) Init() tea.Cmd {
 	if len(m.items) == 0 {
 		return tea.Quit
 	}
-	return tea.Batch(m.spinner.Tick, m.scrapeItem(0))
+	return tea.Batch(m.spinner.Tick, func() tea.Msg {
+		b, err := scraper.NewBrowser(m.profileDir)
+		return batchBrowserReadyMsg{browser: b, err: err}
+	})
 }
 
 func (m BatchAddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -91,12 +101,30 @@ func (m BatchAddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
+			if m.browser != nil {
+				m.browser.Close()
+			}
 			return m, tea.Quit
 		default:
 			if m.allDone() {
+				if m.browser != nil {
+					m.browser.Close()
+				}
 				return m, tea.Quit
 			}
 		}
+
+	case batchBrowserReadyMsg:
+		if msg.err != nil {
+			for i := range m.items {
+				m.items[i].state = batchFailed
+				m.items[i].err = msg.err
+			}
+			m.failed = len(m.items)
+			return m, nil
+		}
+		m.browser = msg.browser
+		return m, m.scrapeItem(0)
 
 	case spinner.TickMsg:
 		if m.allDone() {
@@ -125,6 +153,7 @@ func (m BatchAddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.skipped++
 		} else {
 			m.failed++
+			config.AppendFailedURL(m.items[msg.index].url)
 		}
 		return m, m.startNext(msg.index)
 	}
@@ -163,7 +192,7 @@ func (m BatchAddModel) scrapeItem(index int) tea.Cmd {
 		if err != nil {
 			return batchErrMsg{index: index, err: fmt.Errorf("invalid URL: %w", err)}
 		}
-		meta, err := scraper.Scrape(plat, slug, m.profileDir)
+		meta, err := scraper.Scrape(m.browser, plat, slug)
 		if err != nil {
 			return batchErrMsg{index: index, err: err}
 		}
