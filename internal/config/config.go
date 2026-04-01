@@ -50,7 +50,11 @@ func FailedURLsPath() string {
 }
 
 func AppendFailedURL(url string) {
-	f, err := os.OpenFile(FailedURLsPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	appendToFile(FailedURLsPath(), url)
+}
+
+func appendToFile(path, url string) {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return
 	}
