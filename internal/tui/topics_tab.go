@@ -249,14 +249,3 @@ func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 	}
 	return out
 }
-
-func rateColor(pct int) lipgloss.Color {
-	switch {
-	case pct >= 75:
-		return colorSuccess
-	case pct >= 50:
-		return colorWarning
-	default:
-		return colorDanger
-	}
-}
