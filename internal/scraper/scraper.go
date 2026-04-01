@@ -23,6 +23,41 @@ type ProblemMeta struct {
 	Topics     []string // e.g. ["array", "hash-table"]
 }
 
+// Browser wraps a Chrome process and Rod connection for reuse across scrapes.
+type Browser struct {
+	browser    *rod.Browser
+	killChrome func()
+}
+
+// NewBrowser launches a headless Chrome process and connects Rod to it.
+// Call Close() when done to kill Chrome and clean up profile locks.
+func NewBrowser(profileDir string) (*Browser, error) {
+	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+	wsURL, kill, err := launchChrome(chromePath, profileDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var browser *rod.Browser
+	if connectErr := rod.Try(func() {
+		browser = rod.New().ControlURL(wsURL).MustConnect()
+	}); connectErr != nil {
+		kill()
+		return nil, fmt.Errorf("connect to chrome: %w", connectErr)
+	}
+
+	return &Browser{browser: browser, killChrome: kill}, nil
+}
+
+func (b *Browser) Close() {
+	if b.browser != nil {
+		b.browser.MustClose()
+	}
+	if b.killChrome != nil {
+		b.killChrome()
+	}
+}
+
 // launchChrome starts Chrome via exec.Command with --headless=new and a remote
 // debugging port, then returns the DevTools WebSocket URL for Rod to connect.
 // We launch externally (not via Rod's launcher) so Chrome can access the macOS
@@ -88,25 +123,23 @@ func freePort() (int, error) {
 	return port, nil
 }
 
-// Scrape fetches problem metadata from the platform page for the given slug.
-// Launches headless Chrome with the persistent browser profile. Timeout: 30 seconds.
-func Scrape(platform, slug, profileDir string) (ProblemMeta, error) {
+// Scrape fetches problem metadata for the given platform/slug using the
+// provided browser instance. Creates a new page, scrapes, then closes the page.
+func Scrape(b *Browser, platform, slug string) (ProblemMeta, error) {
 	tmpl := viper.GetString("platforms." + platform + ".url_template")
 	if tmpl == "" {
 		return ProblemMeta{}, fmt.Errorf("no URL template configured for platform %q", platform)
 	}
 	pageURL := strings.ReplaceAll(tmpl, "{{slug}}", slug)
 
-	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-	u, killChrome, err := launchChrome(chromePath, profileDir)
-	if err != nil {
-		return ProblemMeta{}, fmt.Errorf("launch browser: %w", err)
+	var page *rod.Page
+	if err := rod.Try(func() {
+		page = b.browser.MustPage(pageURL)
+	}); err != nil {
+		return ProblemMeta{}, fmt.Errorf("create page: %w", err)
 	}
-	defer killChrome()
-	browser := rod.New().ControlURL(u).MustConnect()
-	defer browser.MustClose()
+	defer page.Close()
 
-	page := browser.MustPage(pageURL)
 	page = page.Timeout(30 * time.Second)
 
 	if err := page.WaitLoad(); err != nil {

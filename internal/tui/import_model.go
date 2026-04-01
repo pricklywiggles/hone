@@ -54,6 +54,11 @@ type importErrMsg struct {
 	err   error
 }
 
+type importBrowserReadyMsg struct {
+	browser *scraper.Browser
+	err     error
+}
+
 // ── model ─────────────────────────────────────────────────────────────────────
 
 type ImportModel struct {
@@ -69,6 +74,7 @@ type ImportModel struct {
 	db            *sqlx.DB
 	profileDir    string
 	playlistCache map[string]int // name → id
+	browser       *scraper.Browser
 }
 
 func NewImportModel(db *sqlx.DB, profileDir string, groups []importer.ImportGroup) ImportModel {
@@ -113,18 +119,39 @@ func (m ImportModel) Init() tea.Cmd {
 	if len(m.items) == 0 {
 		return tea.Quit
 	}
-	return tea.Batch(m.spinner.Tick, m.processItem(0))
+	return tea.Batch(m.spinner.Tick, func() tea.Msg {
+		b, err := scraper.NewBrowser(m.profileDir)
+		return importBrowserReadyMsg{browser: b, err: err}
+	})
 }
 
 func (m ImportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
+			if m.browser != nil {
+				m.browser.Close()
+			}
 			return m, tea.Quit
 		}
 		if m.allDone() {
+			if m.browser != nil {
+				m.browser.Close()
+			}
 			return m, tea.Quit
 		}
+
+	case importBrowserReadyMsg:
+		if msg.err != nil {
+			for i := range m.items {
+				m.items[i].state = importFailed
+				m.items[i].err = msg.err
+			}
+			m.failed = len(m.items)
+			return m, nil
+		}
+		m.browser = msg.browser
+		return m, m.processItem(0)
 
 	case spinner.TickMsg:
 		if m.allDone() {
@@ -199,7 +226,7 @@ func (m ImportModel) allDone() bool {
 func (m ImportModel) processItem(index int) tea.Cmd {
 	item := m.items[index]
 	db := m.db
-	profileDir := m.profileDir
+	browser := m.browser
 
 	// Snapshot the cache so the closure has a consistent view.
 	cacheCopy := make(map[string]int, len(m.playlistCache))
@@ -226,7 +253,7 @@ func (m ImportModel) processItem(index int) tea.Cmd {
 		if existed {
 			problemID = existing.ID
 		} else {
-			meta, err := scraper.Scrape(plat, slug, profileDir)
+			meta, err := scraper.Scrape(browser, plat, slug)
 			if err != nil {
 				return importErrMsg{index: index, label: label, err: fmt.Errorf("scrape: %w", err)}
 			}
