@@ -134,6 +134,10 @@ The SM-2 easiness factor update is a single generic function: `EF' = EF + (0.1 -
 
 - **Practice sessions**: launches a visible (headful) Chrome window. Monitors the DOM for submission result indicators on LeetCode/NeetCode. Sends results back to the TUI via Go channels.
 - **Scraping**: runs headless. The `add` command parses a pasted URL to identify the platform and extract the slug, then navigates to the page to scrape title, topics, difficulty, and other metadata.
+- **External Chrome launch**: The scraper launches Chrome via `exec.Command` (not Rod's `launcher.New()`) because Rod's launcher uses `--use-mock-keychain` and other flags that prevent Chrome from accessing the macOS Keychain, which is required to decrypt cookies saved during `hone auth`.
+- **Browser reuse**: Batch and import operations share a single `scraper.Browser` instance across all URLs. Launching/killing Chrome per URL causes port exhaustion, profile lock corruption, and panics. Panic-prone Rod calls (`MustConnect`, `MustPage`) are wrapped in `rod.Try()`.
+- **NeetCode auth wait**: NeetCode pages initially render unauthenticated, then client-side JS loads auth state. The scraper applies `WaitIdle(5s) + time.Sleep(3s)` before reading the page for NeetCode only.
+- **Topic normalization**: Dashes in topic names are replaced with spaces for both platforms to prevent duplicates (e.g. "breadth-first search" → "breadth first search").
 
 ## TUI Design
 
