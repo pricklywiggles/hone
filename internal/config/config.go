@@ -153,6 +153,8 @@ func setDefaults() {
 	viper.SetDefault("thresholds.hard.fast", 20)
 	viper.SetDefault("thresholds.hard.normal", 40)
 
+	viper.SetDefault("auto_focus", true)
+
 	for key, val := range platform.Defaults() {
 		viper.SetDefault(key, val)
 	}

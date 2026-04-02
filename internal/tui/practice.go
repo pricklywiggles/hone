@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -13,6 +15,7 @@ import (
 	"github.com/pricklywiggles/hone/internal/monitor"
 	"github.com/pricklywiggles/hone/internal/srs"
 	"github.com/pricklywiggles/hone/internal/store"
+	"github.com/spf13/viper"
 )
 
 // ── State machine ─────────────────────────────────────────────────────────────
@@ -149,7 +152,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.result = &r
 		m.state = practiceDone
-		return m, m.saveAttempt(r)
+		return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
 
 	case practiceSavedMsg:
 		m.nextDate = string(msg)
@@ -231,6 +234,21 @@ func waitForResult(ch <-chan monitor.Result) tea.Cmd {
 			return nil
 		}
 		return practiceResultMsg(r)
+	}
+}
+
+func focusTerminalCmd() tea.Cmd {
+	if !viper.GetBool("auto_focus") {
+		return nil
+	}
+	return func() tea.Msg {
+		app := os.Getenv("TERM_PROGRAM")
+		if app == "" {
+			return nil
+		}
+		exec.Command("osascript", "-e",
+			fmt.Sprintf(`tell application "%s" to activate`, app)).Run()
+		return nil
 	}
 }
 
