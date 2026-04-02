@@ -72,7 +72,7 @@ If a mastered problem is failed (EF decays, interval resets), it resurfaces for 
 
 1. **Filter** — if a playlist or topic is active, only consider those problems
 2. **Due problems** — all problems where `next_review_date ≤ today`
-3. **Pick rule** — if due problems exist, pick the most overdue (oldest date first); otherwise pick the one with the nearest upcoming date
+3. **Pick rule** — if due problems exist, pick the most overdue (oldest date first); ties break by difficulty (easy first), then playlist position or random. Otherwise pick the one with the nearest upcoming date
 
 The TUI makes the distinction clear: "you have 5 problems due" vs "nothing due today — here's one in 3 days."
 

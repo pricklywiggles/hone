@@ -59,7 +59,7 @@ Running the CLI with no arguments opens the **statistics dashboard** as the land
 - **Topics** — id, name (e.g. "binary search", "dynamic programming")
 - **ProblemTopics** — problem_id, topic_id (many-to-many)
 - **Playlists** — id, name, created_at
-- **PlaylistProblems** — playlist_id, problem_id (many-to-many)
+- **PlaylistProblems** — playlist_id, problem_id, position (many-to-many, ordered)
 - **Attempts** — id, problem_id, started_at, completed_at, result (success/fail), duration_seconds, quality (int, 1–5)
 - **ProblemSRS** — problem_id, easiness_factor (float, default 2.5), interval_days (int, default 1), repetition_count (int, consecutive successes), next_review_date (date), mastered_before (bool, default false)
 
@@ -73,7 +73,7 @@ The picker uses a modified SM-2 algorithm adapted for coding problems.
 
 1. **Filter** to the active playlist. If no playlist is selected, all problems are candidates.
 2. **Select due problems**: all candidates where `next_review_date <= today`.
-3. If due problems exist, pick the most overdue (oldest `next_review_date`).
+3. If due problems exist, pick the most overdue (oldest `next_review_date`). Ties are broken by difficulty (easy → medium → hard), then by playlist position (if a playlist is active) or random selection.
 4. If nothing is due, pick the problem with the nearest future `next_review_date` (closest to due). The TUI should communicate this distinction — e.g. "nothing due today, but here's one coming up" vs "you have 12 problems due."
 
 ### Updating SRS state after an attempt

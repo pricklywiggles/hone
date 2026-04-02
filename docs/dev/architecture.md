@@ -107,7 +107,7 @@ problems        -- id, platform, slug, title, difficulty, created_at
 topics          -- id, name
 problem_topics  -- problem_id, topic_id (many-to-many)
 playlists       -- id, name, created_at
-playlist_problems -- playlist_id, problem_id (many-to-many)
+playlist_problems -- playlist_id, problem_id, position (many-to-many, ordered)
 attempts        -- id, problem_id, started_at, completed_at, result, duration_seconds, quality
 problem_srs     -- problem_id, easiness_factor, interval_days, repetition_count, next_review_date, mastered_before
 ```
