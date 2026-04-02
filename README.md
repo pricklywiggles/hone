@@ -6,6 +6,10 @@
 
 hone schedules LeetCode, NeetCode, and GeeksForGeeks problems using the SM-2 algorithm, opens them in your browser, detects submission results automatically, and tells you exactly when to revisit each one. No self-reporting, no manual ratings — just solve the problem and hone tracks the rest.
 
+If you find this useful, buy me a coffee!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L3L81X4KW7)
+
 ---
 
 ## Documentation
