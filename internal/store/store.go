@@ -76,6 +76,7 @@ type PracticeFilter struct {
 // Returns nil, nil, false, nil when no problems exist.
 func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bool, error) {
 	filterJoin, filterArgs := filterClauses(filter)
+	orderBy := pickOrderBy(filter)
 
 	// Try due problems first (most overdue first).
 	dueQuery := `
@@ -84,7 +85,7 @@ func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bo
 		JOIN problem_srs ps ON ps.problem_id = p.id` +
 		filterJoin + `
 		WHERE ps.next_review_date <= date('now')
-		ORDER BY ps.next_review_date ASC
+		ORDER BY ` + orderBy + `
 		LIMIT 1`
 
 	var row pickRow
@@ -103,7 +104,7 @@ func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bo
 		JOIN problem_srs ps ON ps.problem_id = p.id` +
 		filterJoin + `
 		WHERE ps.next_review_date > date('now')
-		ORDER BY ps.next_review_date ASC
+		ORDER BY ` + orderBy + `
 		LIMIT 1`
 
 	err = db.Get(&row, upcomingQuery, filterArgs...)
@@ -114,6 +115,16 @@ func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bo
 		return nil, nil, false, nil
 	}
 	return nil, nil, false, err
+}
+
+const difficultyOrder = `CASE p.difficulty WHEN 'easy' THEN 1 WHEN 'medium' THEN 2 WHEN 'hard' THEN 3 ELSE 4 END`
+
+func pickOrderBy(f PracticeFilter) string {
+	tertiary := "RANDOM()"
+	if f.PlaylistID != nil {
+		tertiary = "pp.position ASC"
+	}
+	return "ps.next_review_date ASC, " + difficultyOrder + ", " + tertiary
 }
 
 // GetSRSState returns the SRS state for a problem.
