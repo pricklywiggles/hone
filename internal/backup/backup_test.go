@@ -58,6 +58,9 @@ func TestRoundTrip(t *testing.T) {
 	if err := store.AddProblemToPlaylist(srcDB, int(plID), int(id1)); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.AddProblemToPlaylist(srcDB, int(plID), int(id2)); err != nil {
+		t.Fatal(err)
+	}
 
 	now := time.Now().UTC()
 	if err := store.RecordAttempt(srcDB, int(id2), now, now.Add(10*60*1e9), "success", 600, 5); err != nil {
@@ -112,8 +115,26 @@ func TestRoundTrip(t *testing.T) {
 	if err := dstDB.QueryRow(`SELECT COUNT(*) FROM playlist_problems`).Scan(&ppCount); err != nil {
 		t.Fatal(err)
 	}
-	if ppCount != 1 {
-		t.Errorf("playlist_problems: got %d, want 1", ppCount)
+	if ppCount != 2 {
+		t.Errorf("playlist_problems: got %d, want 2", ppCount)
+	}
+
+	// Verify positions survived the round-trip.
+	rows, err := dstDB.Query(`SELECT position FROM playlist_problems ORDER BY position`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var positions []int
+	for rows.Next() {
+		var pos int
+		if err := rows.Scan(&pos); err != nil {
+			t.Fatal(err)
+		}
+		positions = append(positions, pos)
+	}
+	if len(positions) != 2 || positions[0] != 0 || positions[1] != 1 {
+		t.Errorf("playlist_problems positions: got %v, want [0 1]", positions)
 	}
 
 	var attemptCount int

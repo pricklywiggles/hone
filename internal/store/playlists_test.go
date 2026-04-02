@@ -131,6 +131,95 @@ func TestGetPlaylistByName(t *testing.T) {
 	})
 }
 
+func TestAddProblemToPlaylist_SequentialPositions(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	d.MustExec(`INSERT INTO problems (platform, slug, title, difficulty) VALUES ('leetcode', 'a', 'A', 'easy')`)
+	d.MustExec(`INSERT INTO problems (platform, slug, title, difficulty) VALUES ('leetcode', 'b', 'B', 'easy')`)
+	d.MustExec(`INSERT INTO problems (platform, slug, title, difficulty) VALUES ('leetcode', 'c', 'C', 'easy')`)
+
+	plID, err := CreatePlaylist(d, "ordered")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pid := range []int{1, 2, 3} {
+		if err := AddProblemToPlaylist(d, int(plID), pid); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rows, err := d.Query(`SELECT problem_id, position FROM playlist_problems WHERE playlist_id = ? ORDER BY position`, plID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	expected := []struct{ pid, pos int }{{1, 0}, {2, 1}, {3, 2}}
+	i := 0
+	for rows.Next() {
+		var pid, pos int
+		if err := rows.Scan(&pid, &pos); err != nil {
+			t.Fatal(err)
+		}
+		if i >= len(expected) {
+			t.Fatalf("more rows than expected")
+		}
+		if pid != expected[i].pid || pos != expected[i].pos {
+			t.Errorf("row %d: got pid=%d pos=%d, want pid=%d pos=%d", i, pid, pos, expected[i].pid, expected[i].pos)
+		}
+		i++
+	}
+	if i != len(expected) {
+		t.Errorf("got %d rows, want %d", i, len(expected))
+	}
+}
+
+func TestAddProblemToPlaylist_IdempotentPosition(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	d.MustExec(`INSERT INTO problems (platform, slug, title, difficulty) VALUES ('leetcode', 'a', 'A', 'easy')`)
+	d.MustExec(`INSERT INTO problems (platform, slug, title, difficulty) VALUES ('leetcode', 'b', 'B', 'easy')`)
+
+	plID, err := CreatePlaylist(d, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := AddProblemToPlaylist(d, int(plID), 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddProblemToPlaylist(d, int(plID), 2); err != nil {
+		t.Fatal(err)
+	}
+	// Re-add problem 1 — should be ignored.
+	if err := AddProblemToPlaylist(d, int(plID), 1); err != nil {
+		t.Fatal(err)
+	}
+
+	var count int
+	if err := d.QueryRow(`SELECT COUNT(*) FROM playlist_problems WHERE playlist_id = ?`, plID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 rows, got %d", count)
+	}
+
+	var pos int
+	if err := d.QueryRow(`SELECT position FROM playlist_problems WHERE playlist_id = ? AND problem_id = 1`, plID).Scan(&pos); err != nil {
+		t.Fatal(err)
+	}
+	if pos != 0 {
+		t.Errorf("expected position 0 for problem 1 after re-add, got %d", pos)
+	}
+}
+
 func TestPlaylistProblemCount(t *testing.T) {
 	d, err := db.OpenMemory()
 	if err != nil {
