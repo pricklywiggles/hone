@@ -120,7 +120,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "esc":
 			m.cancelFn()
 			if m.session != nil {
-				go m.session.Close()
+				m.session.Close()
 			}
 			return m, Pop()
 		case "n", "enter":
@@ -176,7 +176,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case practiceNoNextMsg:
 		if m.session != nil {
-			go m.session.Close()
+			m.session.Close()
 		}
 		return m, Pop()
 	}
