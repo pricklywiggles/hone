@@ -36,23 +36,28 @@ type practiceNextMsg struct {
 	isDue    bool
 }
 type practiceNoNextMsg struct{}
+type practiceSessionReadyMsg struct {
+	session  *monitor.Session
+	resultCh <-chan monitor.Result
+}
+type practiceSessionErrMsg struct{ err error }
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 // PracticeModel is the Bubble Tea model for a practice session.
-// startedAt and cancelFn are initialised in the constructor so they are
-// available from the first tick / render.
 type PracticeModel struct {
-	state           practiceState
-	problem         *store.Problem
-	srsState        *srs.ProblemSRS
-	isDue           bool
-	startedAt       time.Time
-	result          *monitor.Result
-	monitorErr      error
-	nextDate        string
-	cancelFn        context.CancelFunc
-	ctx             context.Context
+	state      practiceState
+	problem    *store.Problem
+	srsState   *srs.ProblemSRS
+	isDue      bool
+	startedAt  time.Time
+	result     *monitor.Result
+	monitorErr error
+	nextDate   string
+	cancelFn   context.CancelFunc
+	ctx        context.Context
+	session    *monitor.Session
+	resultCh   <-chan monitor.Result
 	db         *sqlx.DB
 	profileDir string
 	filter     store.PracticeFilter
@@ -83,11 +88,19 @@ func NewPracticeModel(
 }
 
 func (m PracticeModel) Init() tea.Cmd {
-	url := config.BuildURL(m.problem.Platform, m.problem.Slug)
-	return tea.Batch(
-		tickCmd(),
-		waitForResult(m.ctx, m.problem.Platform, url, m.profileDir),
-	)
+	return tea.Batch(tickCmd(), m.startSession())
+}
+
+func (m PracticeModel) startSession() tea.Cmd {
+	return func() tea.Msg {
+		session, err := monitor.NewSession(m.profileDir)
+		if err != nil {
+			return practiceSessionErrMsg{err}
+		}
+		url := config.BuildURL(m.problem.Platform, m.problem.Slug)
+		ch := session.Monitor(m.ctx, m.problem.Platform, url)
+		return practiceSessionReadyMsg{session, ch}
+	}
 }
 
 func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -96,9 +109,15 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			m.cancelFn()
+			if m.session != nil {
+				m.session.Close()
+			}
 			return m, tea.Quit
 		case "q", "esc":
 			m.cancelFn()
+			if m.session != nil {
+				go m.session.Close()
+			}
 			return m, Pop()
 		case "n", "enter":
 			if m.state == practiceDone {
@@ -111,17 +130,25 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tickCmd()
 		}
 
+	case practiceSessionReadyMsg:
+		m.session = msg.session
+		m.resultCh = msg.resultCh
+		return m, waitForResult(msg.resultCh)
+
+	case practiceSessionErrMsg:
+		m.monitorErr = msg.err
+		m.state = practiceError
+		return m, nil
+
 	case practiceResultMsg:
 		r := monitor.Result(msg)
 		if r.Err != nil {
 			m.monitorErr = r.Err
 			m.state = practiceError
-			m.cancelFn()
 			return m, nil
 		}
 		m.result = &r
 		m.state = practiceDone
-		m.cancelFn()
 		return m, m.saveAttempt(r)
 
 	case practiceSavedMsg:
@@ -139,9 +166,14 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ctx = ctx
 		m.cancelFn = cancel
 		url := config.BuildURL(m.problem.Platform, m.problem.Slug)
-		return m, tea.Batch(tickCmd(), waitForResult(ctx, m.problem.Platform, url, m.profileDir))
+		ch := m.session.Monitor(ctx, m.problem.Platform, url)
+		m.resultCh = ch
+		return m, tea.Batch(tickCmd(), waitForResult(ch))
 
 	case practiceNoNextMsg:
+		if m.session != nil {
+			go m.session.Close()
+		}
 		return m, Pop()
 	}
 
@@ -192,8 +224,7 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(time.Time) tea.Msg { return practiceTickMsg{} })
 }
 
-func waitForResult(ctx context.Context, platform, problemURL, profileDir string) tea.Cmd {
-	ch := monitor.Monitor(ctx, platform, problemURL, profileDir)
+func waitForResult(ch <-chan monitor.Result) tea.Cmd {
 	return func() tea.Msg {
 		r, ok := <-ch
 		if !ok {
