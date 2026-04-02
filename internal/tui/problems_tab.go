@@ -202,6 +202,8 @@ func (m ProblemsTabModel) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m ProblemsTabModel) isFiltering() bool { return m.filtering }
+
 func (m *ProblemsTabModel) applyFilterAndSort() {
 	query := strings.ToLower(m.filterInput.Value())
 
