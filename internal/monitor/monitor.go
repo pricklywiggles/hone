@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -19,20 +20,66 @@ type Result struct {
 	Err         error
 }
 
-// Monitor opens a headful browser at problemURL using the persistent profile,
-// polls the DOM every second for a submission result, and sends exactly one
-// Result on the returned channel before closing it. The channel is also closed
-// (without a value) if ctx is cancelled.
-func Monitor(ctx context.Context, platformName, problemURL, profileDir string) <-chan Result {
+// Session holds a long-lived browser instance that is reused across practice
+// problems. Create one with NewSession, call Monitor for each problem, and
+// Close when the practice session ends.
+type Session struct {
+	browser *rod.Browser
+	mu      sync.Mutex
+	closed  bool
+}
+
+// NewSession launches a headful Chrome instance using the persistent profile.
+func NewSession(profileDir string) (*Session, error) {
+	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+	var u string
+	err := rod.Try(func() {
+		u = launcher.NewUserMode().
+			Bin(chromePath).
+			UserDataDir(profileDir).
+			MustLaunch()
+	})
+	if err != nil {
+		return nil, fmt.Errorf("monitor: launch chrome: %w", err)
+	}
+
+	var browser *rod.Browser
+	err = rod.Try(func() {
+		browser = rod.New().ControlURL(u).MustConnect().NoDefaultDevice()
+	})
+	if err != nil {
+		return nil, fmt.Errorf("monitor: connect to chrome: %w", err)
+	}
+
+	return &Session{browser: browser}, nil
+}
+
+// Monitor opens a new tab at problemURL, polls the DOM every second for a
+// submission result, and sends exactly one Result on the returned channel
+// before closing it. The browser stays open after a result is detected.
+// The channel is closed without a value if ctx is cancelled.
+func (s *Session) Monitor(ctx context.Context, platformName, problemURL string) <-chan Result {
 	ch := make(chan Result, 1)
 	go func() {
 		defer close(ch)
-		run(ctx, platformName, problemURL, profileDir, ch)
+		s.poll(ctx, platformName, problemURL, ch)
 	}()
 	return ch
 }
 
-func run(ctx context.Context, platformName, problemURL, profileDir string, ch chan<- Result) {
+// Close shuts down the browser. Safe to call multiple times or after a crash.
+func (s *Session) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	s.closed = true
+	rod.Try(func() { s.browser.MustClose() })
+}
+
+func (s *Session) poll(ctx context.Context, platformName, problemURL string, ch chan<- Result) {
 	p, err := platform.Get(platformName)
 	if err != nil {
 		err = fmt.Errorf("monitor: %w", err)
@@ -41,15 +88,17 @@ func run(ctx context.Context, platformName, problemURL, profileDir string, ch ch
 		return
 	}
 
-	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-	u := launcher.NewUserMode().
-		Bin(chromePath).
-		UserDataDir(profileDir).
-		MustLaunch()
-	browser := rod.New().ControlURL(u).MustConnect().NoDefaultDevice()
-	defer browser.MustClose()
+	var page *rod.Page
+	err = rod.Try(func() {
+		page = s.browser.MustPage(problemURL)
+	})
+	if err != nil {
+		err = fmt.Errorf("monitor: open page: %w", err)
+		debuglog.Log("%v", err)
+		ch <- Result{Err: err}
+		return
+	}
 
-	page := browser.MustPage(problemURL)
 	if err := page.WaitLoad(); err != nil {
 		err = fmt.Errorf("monitor: page load failed: %w", err)
 		debuglog.Log("%v", err)
@@ -57,7 +106,16 @@ func run(ctx context.Context, platformName, problemURL, profileDir string, ch ch
 		return
 	}
 
-	initial := p.ResultIndicatorText(page)
+	var initial string
+	err = rod.Try(func() {
+		initial = p.ResultIndicatorText(page)
+	})
+	if err != nil {
+		err = fmt.Errorf("monitor: read initial indicator: %w", err)
+		debuglog.Log("%v", err)
+		ch <- Result{Err: err}
+		return
+	}
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -67,10 +125,32 @@ func run(ctx context.Context, platformName, problemURL, profileDir string, ch ch
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if p.ResultIndicatorText(page) == initial {
+			var currentText string
+			var readErr error
+			readErr = rod.Try(func() {
+				currentText = p.ResultIndicatorText(page)
+			})
+			if readErr != nil {
+				err := fmt.Errorf("monitor: browser disconnected: %w", readErr)
+				debuglog.Log("%v", err)
+				ch <- Result{Err: err}
+				return
+			}
+			if currentText == initial {
 				continue
 			}
-			if success, found := p.DetectResult(page); found {
+
+			var success, found bool
+			readErr = rod.Try(func() {
+				success, found = p.DetectResult(page)
+			})
+			if readErr != nil {
+				err := fmt.Errorf("monitor: browser disconnected: %w", readErr)
+				debuglog.Log("%v", err)
+				ch <- Result{Err: err}
+				return
+			}
+			if found {
 				ch <- Result{Success: success, CompletedAt: time.Now()}
 				return
 			}
