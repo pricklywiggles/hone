@@ -79,7 +79,18 @@ func (s *Session) Close() {
 	rod.Try(func() { s.browser.MustClose() })
 }
 
+func (s *Session) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
+}
+
 func (s *Session) poll(ctx context.Context, platformName, problemURL string, ch chan<- Result) {
+	if s.isClosed() {
+		ch <- Result{Err: fmt.Errorf("monitor: session already closed")}
+		return
+	}
+
 	p, err := platform.Get(platformName)
 	if err != nil {
 		err = fmt.Errorf("monitor: %w", err)
@@ -99,8 +110,18 @@ func (s *Session) poll(ctx context.Context, platformName, problemURL string, ch 
 		return
 	}
 
-	if err := page.WaitLoad(); err != nil {
+	err = rod.Try(func() {
+		page.MustWaitLoad()
+	})
+	if err != nil {
 		err = fmt.Errorf("monitor: page load failed: %w", err)
+		debuglog.Log("%v", err)
+		ch <- Result{Err: err}
+		return
+	}
+
+	if err := p.ExtraWait(page); err != nil {
+		err = fmt.Errorf("monitor: platform wait failed: %w", err)
 		debuglog.Log("%v", err)
 		ch <- Result{Err: err}
 		return

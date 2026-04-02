@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -237,13 +238,15 @@ func waitForResult(ch <-chan monitor.Result) tea.Cmd {
 	}
 }
 
+var safeAppName = regexp.MustCompile(`^[a-zA-Z0-9_. -]+$`)
+
 func focusTerminalCmd() tea.Cmd {
 	if !viper.GetBool("auto_focus") {
 		return nil
 	}
 	return func() tea.Msg {
 		app := os.Getenv("TERM_PROGRAM")
-		if app == "" {
+		if app == "" || !safeAppName.MatchString(app) {
 			return nil
 		}
 		exec.Command("osascript", "-e",
