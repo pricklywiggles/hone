@@ -73,14 +73,14 @@ func RestoreFromBackup(db *sqlx.DB, data BackupData) error {
 		plID, _ := res.LastInsertId()
 		playlistIDs[pl.Name] = plID
 
-		for _, key := range pl.Problems {
+		for pos, key := range pl.Problems {
 			probID, ok := problemIDs[key]
 			if !ok {
 				return fmt.Errorf("playlist %q references unknown problem %q", pl.Name, key)
 			}
 			if _, err := tx.Exec(
-				`INSERT OR IGNORE INTO playlist_problems (playlist_id, problem_id) VALUES (?, ?)`,
-				plID, probID); err != nil {
+				`INSERT OR IGNORE INTO playlist_problems (playlist_id, problem_id, position) VALUES (?, ?, ?)`,
+				plID, probID, pos); err != nil {
 				return fmt.Errorf("link playlist problem: %w", err)
 			}
 		}

@@ -46,10 +46,12 @@ type SimpleProblem struct {
 }
 
 // AddProblemToPlaylist links a problem to a playlist. Idempotent.
+// Position is set to one past the current max for the playlist.
 func AddProblemToPlaylist(db *sqlx.DB, playlistID, problemID int) error {
 	_, err := db.Exec(
-		`INSERT OR IGNORE INTO playlist_problems (playlist_id, problem_id) VALUES (?, ?)`,
-		playlistID, problemID,
+		`INSERT OR IGNORE INTO playlist_problems (playlist_id, problem_id, position)
+		 VALUES (?, ?, COALESCE((SELECT MAX(position) + 1 FROM playlist_problems WHERE playlist_id = ?), 0))`,
+		playlistID, problemID, playlistID,
 	)
 	return err
 }

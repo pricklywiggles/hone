@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -93,7 +94,7 @@ func TestPickNext_PlaylistFilter(t *testing.T) {
 
 	// Create playlist and add only problem 2
 	d.MustExec(`INSERT INTO playlists (name) VALUES ('my-list')`)
-	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id) VALUES (1, 2)`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 2, 0)`)
 
 	// Both due
 	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '-1 day')`)
@@ -166,6 +167,105 @@ func TestSaveSRSState(t *testing.T) {
 	}
 	if got.NextReviewDate != "2026-04-04" {
 		t.Errorf("NextReviewDate = %v, want 2026-04-04", got.NextReviewDate)
+	}
+}
+
+func TestPickNext_TiebreakByDifficulty(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// Seed in reverse difficulty order to ensure the sort isn't just insertion order.
+	seedProblem(t, d, "leetcode", "hard-problem", "hard")
+	seedProblem(t, d, "leetcode", "medium-problem", "medium")
+	seedProblem(t, d, "leetcode", "easy-problem", "easy")
+
+	// All share the same next_review_date (today, set by default).
+	problem, _, _, err := PickNext(d, PracticeFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if problem.Difficulty != "easy" {
+		t.Errorf("expected easy first, got %s (%s)", problem.Difficulty, problem.Slug)
+	}
+
+	// Advance the easy problem so it's no longer due.
+	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+7 day') WHERE problem_id = ?`, problem.ID)
+
+	problem, _, _, err = PickNext(d, PracticeFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if problem.Difficulty != "medium" {
+		t.Errorf("expected medium next, got %s (%s)", problem.Difficulty, problem.Slug)
+	}
+}
+
+func TestPickNext_TiebreakPlaylistOrder(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// Three problems, all same difficulty.
+	seedProblem(t, d, "leetcode", "alpha", "medium")   // id 1
+	seedProblem(t, d, "leetcode", "beta", "medium")    // id 2
+	seedProblem(t, d, "leetcode", "gamma", "medium")   // id 3
+
+	d.MustExec(`INSERT INTO playlists (name) VALUES ('ordered')`)
+	// Insert in non-id order: 3, 1, 2
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 3, 0)`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 1, 1)`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 2, 2)`)
+
+	playlistID := 1
+	filter := PracticeFilter{PlaylistID: &playlistID}
+
+	problem, _, _, err := PickNext(d, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if problem.Slug != "gamma" {
+		t.Errorf("expected gamma (position 0) first, got %s", problem.Slug)
+	}
+
+	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+7 day') WHERE problem_id = ?`, problem.ID)
+
+	problem, _, _, err = PickNext(d, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if problem.Slug != "alpha" {
+		t.Errorf("expected alpha (position 1) next, got %s", problem.Slug)
+	}
+}
+
+func TestPickNext_TiebreakRandomWithoutPlaylist(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// Five problems, all same difficulty and same review date.
+	for i := 0; i < 5; i++ {
+		seedProblem(t, d, "leetcode", fmt.Sprintf("prob-%d", i), "medium")
+	}
+
+	seen := make(map[int]bool)
+	for range 30 {
+		problem, _, _, err := PickNext(d, PracticeFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen[problem.ID] = true
+	}
+
+	if len(seen) < 2 {
+		t.Errorf("expected random tiebreaking to pick at least 2 different problems across 30 calls, but only saw %d", len(seen))
 	}
 }
 
