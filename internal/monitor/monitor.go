@@ -24,9 +24,10 @@ type Result struct {
 // problems. Create one with NewSession, call Monitor for each problem, and
 // Close when the practice session ends.
 type Session struct {
-	browser *rod.Browser
-	mu      sync.Mutex
-	closed  bool
+	browser    *rod.Browser
+	profileDir string
+	mu         sync.Mutex
+	closed     bool
 }
 
 // NewSession launches a headful Chrome instance using the persistent profile.
@@ -52,7 +53,7 @@ func NewSession(profileDir string) (*Session, error) {
 		return nil, fmt.Errorf("monitor: connect to chrome: %w", err)
 	}
 
-	return &Session{browser: browser}, nil
+	return &Session{browser: browser, profileDir: profileDir}, nil
 }
 
 // Monitor opens a new tab at problemURL, polls the DOM every second for a
@@ -77,6 +78,36 @@ func (s *Session) Close() {
 	}
 	s.closed = true
 	rod.Try(func() { s.browser.MustClose() })
+}
+
+// reconnect tears down the stale browser handle and launches a fresh one.
+// Called when the DevTools TCP connection has gone stale (e.g., after idle overnight).
+func (s *Session) reconnect() error {
+	rod.Try(func() { s.browser.MustClose() })
+
+	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+	var u string
+	err := rod.Try(func() {
+		u = launcher.NewUserMode().
+			Bin(chromePath).
+			UserDataDir(s.profileDir).
+			MustLaunch()
+	})
+	if err != nil {
+		return fmt.Errorf("reconnect: launch chrome: %w", err)
+	}
+
+	var browser *rod.Browser
+	err = rod.Try(func() {
+		browser = rod.New().ControlURL(u).MustConnect().NoDefaultDevice()
+	})
+	if err != nil {
+		return fmt.Errorf("reconnect: connect to chrome: %w", err)
+	}
+
+	s.browser = browser
+	return nil
 }
 
 func (s *Session) isClosed() bool {
@@ -104,10 +135,18 @@ func (s *Session) poll(ctx context.Context, platformName, problemURL string, ch 
 		page = s.browser.MustPage(problemURL)
 	})
 	if err != nil {
-		err = fmt.Errorf("monitor: open page: %w", err)
-		debuglog.Log("%v", err)
-		ch <- Result{Err: err}
-		return
+		debuglog.Log("monitor: page open failed, attempting reconnect: %v", err)
+		if reconErr := s.reconnect(); reconErr != nil {
+			ch <- Result{Err: fmt.Errorf("monitor: reconnect failed: %w", reconErr)}
+			return
+		}
+		err = rod.Try(func() {
+			page = s.browser.MustPage(problemURL)
+		})
+		if err != nil {
+			ch <- Result{Err: fmt.Errorf("monitor: open page after reconnect: %w", err)}
+			return
+		}
 	}
 
 	err = rod.Try(func() {
