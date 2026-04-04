@@ -124,6 +124,15 @@ func (practiceDoneKeyMap) ShortHelp() []key.Binding {
 }
 func (practiceDoneKeyMap) FullHelp() [][]key.Binding { return nil }
 
+type practiceErrorKeyMap struct{}
+
+func (practiceErrorKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("q", "esc"), key.WithHelp("q", "go back")),
+	}
+}
+func (practiceErrorKeyMap) FullHelp() [][]key.Binding { return nil }
+
 // ── Add ──────────────────────────────────────────────────────────────────────
 
 type addInputKeyMap struct{}
