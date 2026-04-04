@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -74,6 +75,8 @@ type PracticeModel struct {
 	profileDir string
 	filter     store.PracticeFilter
 	help       help.Model
+	width      int
+	height     int
 }
 
 func NewPracticeModel(
@@ -100,7 +103,7 @@ func NewPracticeModel(
 }
 
 func (m PracticeModel) Init() tea.Cmd {
-	return tea.Batch(tickCmd(), m.startSession())
+	return tea.Batch(tea.WindowSize(), tickCmd(), m.startSession())
 }
 
 func (m PracticeModel) startSession() tea.Cmd {
@@ -152,6 +155,11 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
 			}
 		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
 
 	case practiceTickMsg:
 		if m.state == practiceWaiting {
@@ -294,23 +302,38 @@ func focusTerminalCmd() tea.Cmd {
 
 // ── View ──────────────────────────────────────────────────────────────────────
 
+const prCardWidth = 56
+
 var (
 	prHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
 	prTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorBright)
 	prDimStyle    = lipgloss.NewStyle().Foreground(colorDim)
 	prOKStyle     = lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
 	prFailStyle   = lipgloss.NewStyle().Bold(true).Foreground(colorDanger)
-	prCardStyle   = lipgloss.NewStyle().
+	prTimerStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
+	prDotStyle    = lipgloss.NewStyle().Foreground(colorDimBg)
+	prCardBase    = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorAccent).
 			Padding(1, 3).
-			Width(52)
+			Width(prCardWidth)
 	prDiffColors = map[string]lipgloss.Color{
 		"easy":   colorSuccess,
 		"medium": colorWarning,
 		"hard":   colorDanger,
 	}
 )
+
+func (m PracticeModel) renderLayout(card string, keys help.KeyMap) string {
+	helpBar := "    " + m.help.View(keys)
+
+	if m.width == 0 {
+		return "\n" + card + "\n\n" + helpBar
+	}
+
+	availH := m.height - 2
+	centered := lipgloss.Place(m.width, availH, lipgloss.Center, lipgloss.Center, card)
+	return centered + "\n" + helpBar
+}
 
 func (m PracticeModel) View() string {
 	switch m.state {
@@ -326,22 +349,27 @@ func (m PracticeModel) View() string {
 func (m PracticeModel) viewWaiting() string {
 	elapsed := time.Since(m.startedAt)
 	diffStyle := lipgloss.NewStyle().Foreground(prDiffColors[m.problem.Difficulty])
+	dot := prDotStyle.Render(" · ")
+
 	dueLabel := prDimStyle.Render("upcoming")
 	if m.isDue {
 		dueLabel = lipgloss.NewStyle().Foreground(colorWarning).Render("due today")
 	}
 
+	innerW := prCardWidth - 2 - 6
+	timer := lipgloss.PlaceHorizontal(innerW, lipgloss.Center, prTimerStyle.Render(formatDuration(elapsed)))
+
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		prHeaderStyle.Render("Practice"),
 		"",
 		prTitleStyle.Render(m.problem.Title),
-		diffStyle.Render(m.problem.Difficulty)+"  "+prDimStyle.Render(m.problem.Platform)+"  "+dueLabel,
+		diffStyle.Render(m.problem.Difficulty)+dot+prDimStyle.Render(m.problem.Platform)+dot+dueLabel,
 		"",
-		prDimStyle.Render("time  ")+lipgloss.NewStyle().Bold(true).Render(formatDuration(elapsed)),
+		timer,
 	)
 
-	return "\n" + prCardStyle.Render(content) +
-		"\n\n  " + m.help.View(practiceWaitingKeyMap{})
+	card := prCardBase.BorderForeground(colorAccent).Render(content)
+	return m.renderLayout(card, practiceWaitingKeyMap{})
 }
 
 func (m PracticeModel) viewDone() string {
@@ -356,13 +384,13 @@ func (m PracticeModel) viewDone() string {
 		borderColor = colorDanger
 	}
 
-	nextLine := prDimStyle.Render("next review: " + m.nextDate)
-	qualityLine := prDimStyle.Render(fmt.Sprintf("quality  %d/5", m.quality))
-	todayLine := prDimStyle.Render(fmt.Sprintf("today  %d/%d solved",
-		m.todayStats.Succeeded, m.todayStats.Attempted))
+	nextLine := prDimStyle.Render("next review  ") + lipgloss.NewStyle().Foreground(colorBright).Render(m.nextDate)
+	qualityLine := prDimStyle.Render("quality  ") + lipgloss.NewStyle().Foreground(colorBright).Render(fmt.Sprintf("%d/5", m.quality))
+	todayLine := prDimStyle.Render("today  ") + lipgloss.NewStyle().Foreground(colorBright).Render(
+		fmt.Sprintf("%d/%d solved", m.todayStats.Succeeded, m.todayStats.Attempted))
 	masteredLine := ""
 	if m.newlyMastered {
-		masteredLine = prOKStyle.Render("Mastered!")
+		masteredLine = lipgloss.NewStyle().Bold(true).Foreground(colorMastered).Render("★ Mastered!")
 	}
 	if m.nextDate == "" {
 		nextLine = prDimStyle.Render("saving…")
@@ -375,7 +403,7 @@ func (m PracticeModel) viewDone() string {
 		verdict,
 		"",
 		prTitleStyle.Render(m.problem.Title),
-		prDimStyle.Render("time  " + formatDuration(elapsed)),
+		prDimStyle.Render("time  ") + lipgloss.NewStyle().Foreground(colorBright).Render(formatDuration(elapsed)),
 	}
 	if qualityLine != "" {
 		lines = append(lines, qualityLine)
@@ -385,37 +413,31 @@ func (m PracticeModel) viewDone() string {
 		lines = append(lines, "", masteredLine)
 	}
 	if todayLine != "" {
-		lines = append(lines, todayLine)
+		lines = append(lines, "", todayLine)
 	}
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
-	card := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
-		Padding(1, 3).
-		Width(52).
-		Render(content)
-
-	return "\n" + card + "\n\n  " + m.help.View(practiceDoneKeyMap{})
+	card := prCardBase.BorderForeground(borderColor).Render(content)
+	return m.renderLayout(card, practiceDoneKeyMap{})
 }
 
 func (m PracticeModel) viewError() string {
-	content := lipgloss.JoinVertical(lipgloss.Left,
+	errMsg := m.monitorErr.Error()
+	maxW := prCardWidth - 2 - 6
+	if len(errMsg) > maxW*3 {
+		errMsg = errMsg[:maxW*3] + "…"
+	}
+	wrapped := lipgloss.NewStyle().Width(maxW).Render(prDimStyle.Render(errMsg))
+
+	lines := []string{
 		prFailStyle.Render("Monitor Error"),
 		"",
-		prDimStyle.Render(m.monitorErr.Error()),
-		"",
-		prDimStyle.Render("Press q to go back."),
-	)
+		wrapped,
+	}
+	content := strings.Join(lines, "\n")
 
-	card := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorDanger).
-		Padding(1, 3).
-		Width(52).
-		Render(content)
-
-	return "\n" + card
+	card := prCardBase.BorderForeground(colorDanger).Render(content)
+	return m.renderLayout(card, practiceErrorKeyMap{})
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
