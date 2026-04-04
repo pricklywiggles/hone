@@ -34,9 +34,10 @@ const (
 type practiceTickMsg struct{}
 type practiceResultMsg monitor.Result
 type practiceSavedMsg struct {
-	nextDate   string
-	quality    int
-	todayStats store.TodayStats
+	nextDate    string
+	quality     int
+	newlyMastered bool
+	todayStats  store.TodayStats
 }
 type practiceNextMsg struct {
 	problem  *store.Problem
@@ -62,9 +63,10 @@ type PracticeModel struct {
 	result     *monitor.Result
 	monitorErr error
 	nextDate   string
-	quality    int
-	todayStats store.TodayStats
-	cancelFn   context.CancelFunc
+	quality       int
+	newlyMastered bool
+	todayStats    store.TodayStats
+	cancelFn      context.CancelFunc
 	ctx        context.Context
 	session    *monitor.Session
 	resultCh   <-chan monitor.Result
@@ -180,6 +182,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case practiceSavedMsg:
 		m.nextDate = msg.nextDate
 		m.quality = msg.quality
+		m.newlyMastered = msg.newlyMastered
 		m.todayStats = msg.todayStats
 
 	case practiceNextMsg:
@@ -191,6 +194,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.result = nil
 		m.nextDate = ""
 		m.quality = 0
+		m.newlyMastered = false
 		m.todayStats = store.TodayStats{}
 		m.state = practiceWaiting
 		m.ctx = ctx
@@ -230,12 +234,18 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 			quality = 1
 		}
 
+		wasMastered := m.srsState.MasteredBefore == 1
 		newState := srs.UpdateSRS(*m.srsState, r.Success, durationMin, thresholds, time.Now())
 		_ = store.RecordAttempt(m.db, m.problem.ID, m.startedAt, r.CompletedAt, result, durationSec, quality)
 		_ = store.SaveSRSState(m.db, newState)
 
 		today, _ := store.GetTodayStats(m.db)
-		return practiceSavedMsg{nextDate: newState.NextReviewDate, quality: quality, todayStats: today}
+		return practiceSavedMsg{
+			nextDate:      newState.NextReviewDate,
+			quality:       quality,
+			newlyMastered: !wasMastered && newState.MasteredBefore == 1,
+			todayStats:    today,
+		}
 	}
 }
 
@@ -350,21 +360,30 @@ func (m PracticeModel) viewDone() string {
 	qualityLine := prDimStyle.Render(fmt.Sprintf("quality  %d/5", m.quality))
 	todayLine := prDimStyle.Render(fmt.Sprintf("today  %d/%d solved",
 		m.todayStats.Succeeded, m.todayStats.Attempted))
+	masteredLine := ""
+	if m.newlyMastered {
+		masteredLine = prOKStyle.Render("Mastered!")
+	}
 	if m.nextDate == "" {
 		nextLine = prDimStyle.Render("saving…")
 		qualityLine = ""
 		todayLine = ""
+		masteredLine = ""
 	}
 
-	content := lipgloss.JoinVertical(lipgloss.Left,
+	lines := []string{
 		verdict,
 		"",
 		prTitleStyle.Render(m.problem.Title),
-		prDimStyle.Render("time  "+formatDuration(elapsed)),
+		prDimStyle.Render("time  " + formatDuration(elapsed)),
 		qualityLine,
 		nextLine,
-		todayLine,
-	)
+	}
+	if masteredLine != "" {
+		lines = append(lines, "", masteredLine)
+	}
+	lines = append(lines, todayLine)
+	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
 	card := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
