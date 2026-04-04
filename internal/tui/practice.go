@@ -35,6 +35,7 @@ type practiceTickMsg struct{}
 type practiceResultMsg monitor.Result
 type practiceSavedMsg struct {
 	nextDate   string
+	quality    int
 	todayStats store.TodayStats
 }
 type practiceNextMsg struct {
@@ -61,6 +62,7 @@ type PracticeModel struct {
 	result     *monitor.Result
 	monitorErr error
 	nextDate   string
+	quality    int
 	todayStats store.TodayStats
 	cancelFn   context.CancelFunc
 	ctx        context.Context
@@ -161,6 +163,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case practiceSavedMsg:
 		m.nextDate = msg.nextDate
+		m.quality = msg.quality
 		m.todayStats = msg.todayStats
 
 	case practiceNextMsg:
@@ -171,6 +174,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.startedAt = time.Now()
 		m.result = nil
 		m.nextDate = ""
+		m.quality = 0
 		m.todayStats = store.TodayStats{}
 		m.state = practiceWaiting
 		m.ctx = ctx
@@ -215,7 +219,7 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 		_ = store.SaveSRSState(m.db, newState)
 
 		today, _ := store.GetTodayStats(m.db)
-		return practiceSavedMsg{nextDate: newState.NextReviewDate, todayStats: today}
+		return practiceSavedMsg{nextDate: newState.NextReviewDate, quality: quality, todayStats: today}
 	}
 }
 
@@ -327,10 +331,12 @@ func (m PracticeModel) viewDone() string {
 	}
 
 	nextLine := prDimStyle.Render("next review: " + m.nextDate)
+	qualityLine := prDimStyle.Render(fmt.Sprintf("quality  %d/5", m.quality))
 	todayLine := prDimStyle.Render(fmt.Sprintf("today  %d/%d solved",
 		m.todayStats.Succeeded, m.todayStats.Attempted))
 	if m.nextDate == "" {
 		nextLine = prDimStyle.Render("saving…")
+		qualityLine = ""
 		todayLine = ""
 	}
 
@@ -339,6 +345,7 @@ func (m PracticeModel) viewDone() string {
 		"",
 		prTitleStyle.Render(m.problem.Title),
 		prDimStyle.Render("time  "+formatDuration(elapsed)),
+		qualityLine,
 		nextLine,
 		todayLine,
 	)
