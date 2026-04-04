@@ -33,7 +33,12 @@ const (
 
 type practiceTickMsg struct{}
 type practiceResultMsg monitor.Result
-type practiceSavedMsg string // carries the next review date after DB write
+type practiceSavedMsg struct {
+	nextDate    string
+	quality     int
+	newlyMastered bool
+	todayStats  store.TodayStats
+}
 type practiceNextMsg struct {
 	problem  *store.Problem
 	srsState *srs.ProblemSRS
@@ -58,7 +63,10 @@ type PracticeModel struct {
 	result     *monitor.Result
 	monitorErr error
 	nextDate   string
-	cancelFn   context.CancelFunc
+	quality       int
+	newlyMastered bool
+	todayStats    store.TodayStats
+	cancelFn      context.CancelFunc
 	ctx        context.Context
 	session    *monitor.Session
 	resultCh   <-chan monitor.Result
@@ -127,6 +135,22 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.state == practiceDone {
 				return m, m.fetchNext()
 			}
+		case "p":
+			if m.state == practiceWaiting {
+				m.cancelFn()
+				r := monitor.Result{Success: true, CompletedAt: time.Now()}
+				m.result = &r
+				m.state = practiceDone
+				return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
+			}
+		case "f":
+			if m.state == practiceWaiting {
+				m.cancelFn()
+				r := monitor.Result{Success: false, CompletedAt: time.Now()}
+				m.result = &r
+				m.state = practiceDone
+				return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
+			}
 		}
 
 	case practiceTickMsg:
@@ -156,7 +180,10 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
 
 	case practiceSavedMsg:
-		m.nextDate = string(msg)
+		m.nextDate = msg.nextDate
+		m.quality = msg.quality
+		m.newlyMastered = msg.newlyMastered
+		m.todayStats = msg.todayStats
 
 	case practiceNextMsg:
 		ctx, cancel := context.WithCancel(context.Background())
@@ -166,6 +193,9 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.startedAt = time.Now()
 		m.result = nil
 		m.nextDate = ""
+		m.quality = 0
+		m.newlyMastered = false
+		m.todayStats = store.TodayStats{}
 		m.state = practiceWaiting
 		m.ctx = ctx
 		m.cancelFn = cancel
@@ -204,11 +234,18 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 			quality = 1
 		}
 
+		wasMastered := m.srsState.MasteredBefore == 1
 		newState := srs.UpdateSRS(*m.srsState, r.Success, durationMin, thresholds, time.Now())
 		_ = store.RecordAttempt(m.db, m.problem.ID, m.startedAt, r.CompletedAt, result, durationSec, quality)
 		_ = store.SaveSRSState(m.db, newState)
 
-		return practiceSavedMsg(newState.NextReviewDate)
+		today, _ := store.GetTodayStats(m.db)
+		return practiceSavedMsg{
+			nextDate:      newState.NextReviewDate,
+			quality:       quality,
+			newlyMastered: !wasMastered && newState.MasteredBefore == 1,
+			todayStats:    today,
+		}
 	}
 }
 
@@ -320,17 +357,37 @@ func (m PracticeModel) viewDone() string {
 	}
 
 	nextLine := prDimStyle.Render("next review: " + m.nextDate)
+	qualityLine := prDimStyle.Render(fmt.Sprintf("quality  %d/5", m.quality))
+	todayLine := prDimStyle.Render(fmt.Sprintf("today  %d/%d solved",
+		m.todayStats.Succeeded, m.todayStats.Attempted))
+	masteredLine := ""
+	if m.newlyMastered {
+		masteredLine = prOKStyle.Render("Mastered!")
+	}
 	if m.nextDate == "" {
 		nextLine = prDimStyle.Render("saving…")
+		qualityLine = ""
+		todayLine = ""
+		masteredLine = ""
 	}
 
-	content := lipgloss.JoinVertical(lipgloss.Left,
+	lines := []string{
 		verdict,
 		"",
 		prTitleStyle.Render(m.problem.Title),
-		prDimStyle.Render("time  "+formatDuration(elapsed)),
-		nextLine,
-	)
+		prDimStyle.Render("time  " + formatDuration(elapsed)),
+	}
+	if qualityLine != "" {
+		lines = append(lines, qualityLine)
+	}
+	lines = append(lines, nextLine)
+	if masteredLine != "" {
+		lines = append(lines, "", masteredLine)
+	}
+	if todayLine != "" {
+		lines = append(lines, todayLine)
+	}
+	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
 	card := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

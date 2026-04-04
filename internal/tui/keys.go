@@ -107,6 +107,8 @@ type practiceWaitingKeyMap struct{}
 
 func (practiceWaitingKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
+		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "manual pass")),
+		key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "manual fail")),
 		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
 }
