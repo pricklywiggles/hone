@@ -376,13 +376,17 @@ func (m PracticeModel) viewDone() string {
 		"",
 		prTitleStyle.Render(m.problem.Title),
 		prDimStyle.Render("time  " + formatDuration(elapsed)),
-		qualityLine,
-		nextLine,
 	}
+	if qualityLine != "" {
+		lines = append(lines, qualityLine)
+	}
+	lines = append(lines, nextLine)
 	if masteredLine != "" {
 		lines = append(lines, "", masteredLine)
 	}
-	lines = append(lines, todayLine)
+	if todayLine != "" {
+		lines = append(lines, todayLine)
+	}
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
 	card := lipgloss.NewStyle().
