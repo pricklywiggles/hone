@@ -33,7 +33,10 @@ const (
 
 type practiceTickMsg struct{}
 type practiceResultMsg monitor.Result
-type practiceSavedMsg string // carries the next review date after DB write
+type practiceSavedMsg struct {
+	nextDate   string
+	todayStats store.TodayStats
+}
 type practiceNextMsg struct {
 	problem  *store.Problem
 	srsState *srs.ProblemSRS
@@ -58,6 +61,7 @@ type PracticeModel struct {
 	result     *monitor.Result
 	monitorErr error
 	nextDate   string
+	todayStats store.TodayStats
 	cancelFn   context.CancelFunc
 	ctx        context.Context
 	session    *monitor.Session
@@ -156,7 +160,8 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
 
 	case practiceSavedMsg:
-		m.nextDate = string(msg)
+		m.nextDate = msg.nextDate
+		m.todayStats = msg.todayStats
 
 	case practiceNextMsg:
 		ctx, cancel := context.WithCancel(context.Background())
@@ -166,6 +171,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.startedAt = time.Now()
 		m.result = nil
 		m.nextDate = ""
+		m.todayStats = store.TodayStats{}
 		m.state = practiceWaiting
 		m.ctx = ctx
 		m.cancelFn = cancel
@@ -208,7 +214,8 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 		_ = store.RecordAttempt(m.db, m.problem.ID, m.startedAt, r.CompletedAt, result, durationSec, quality)
 		_ = store.SaveSRSState(m.db, newState)
 
-		return practiceSavedMsg(newState.NextReviewDate)
+		today, _ := store.GetTodayStats(m.db)
+		return practiceSavedMsg{nextDate: newState.NextReviewDate, todayStats: today}
 	}
 }
 
@@ -320,8 +327,11 @@ func (m PracticeModel) viewDone() string {
 	}
 
 	nextLine := prDimStyle.Render("next review: " + m.nextDate)
+	todayLine := prDimStyle.Render(fmt.Sprintf("today  %d/%d solved",
+		m.todayStats.Succeeded, m.todayStats.Attempted))
 	if m.nextDate == "" {
 		nextLine = prDimStyle.Render("saving…")
+		todayLine = ""
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
@@ -330,6 +340,7 @@ func (m PracticeModel) viewDone() string {
 		prTitleStyle.Render(m.problem.Title),
 		prDimStyle.Render("time  "+formatDuration(elapsed)),
 		nextLine,
+		todayLine,
 	)
 
 	card := lipgloss.NewStyle().

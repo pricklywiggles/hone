@@ -225,6 +225,25 @@ func GetRecentAttempts(db *sqlx.DB, n int) ([]RecentAttempt, error) {
 	return attempts, err
 }
 
+// TodayStats holds the number of attempts and successes for today.
+type TodayStats struct {
+	Attempted int `db:"attempted"`
+	Succeeded int `db:"succeeded"`
+}
+
+// GetTodayStats returns how many problems were attempted and solved today.
+func GetTodayStats(db *sqlx.DB) (TodayStats, error) {
+	var s TodayStats
+	err := db.Get(&s, `
+		SELECT
+			COUNT(*) AS attempted,
+			COALESCE(SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END), 0) AS succeeded
+		FROM attempts
+		WHERE date(started_at) = date('now')
+	`)
+	return s, err
+}
+
 // GetAllProblems returns all problems with SRS state and attempt counts,
 // ordered by next review date then title.
 func GetAllProblems(db *sqlx.DB) ([]ProblemRow, error) {
