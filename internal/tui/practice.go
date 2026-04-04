@@ -133,7 +133,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.state == practiceDone {
 				return m, m.fetchNext()
 			}
-		case "s":
+		case "p":
 			if m.state == practiceWaiting {
 				m.cancelFn()
 				r := monitor.Result{Success: true, CompletedAt: time.Now()}
