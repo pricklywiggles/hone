@@ -89,6 +89,27 @@ jobs:
             echo ""
           done
 
+      - name: Upload signed binaries for notarization
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwin-binaries
+          path: dist/hone_darwin_*/hone
+          retention-days: 1
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/signing.keychain-db || true
+
+  notarize:
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - name: Download signed binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: darwin-binaries
+          path: dist
+
       - name: Notarize binaries
         env:
           APPLE_ID: ${{ secrets.MACOS_NOTARIZE_APPLE_ID }}
@@ -142,7 +163,3 @@ jobs:
 
             rm -f "$ZIP"
           done
-
-      - name: Clean up keychain
-        if: always()
-        run: security delete-keychain $RUNNER_TEMP/signing.keychain-db || true
