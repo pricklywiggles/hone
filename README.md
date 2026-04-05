@@ -14,7 +14,7 @@ If you find this useful, buy me a coffee!
 
 ## Documentation
 
-Full docs at **https://pricklywiggles.github.io/hone** — user guide, command reference, SM-2 concepts, and developer documentation.
+Full docs at **https://pricklywiggles.github.io/hone** — user guide, command reference, SM-2 concepts, and developer documentation in one place.
 
 ---
 
