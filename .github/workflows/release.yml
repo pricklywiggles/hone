@@ -96,15 +96,50 @@ jobs:
           TEAM_ID: ${{ secrets.MACOS_NOTARIZE_TEAM_ID }}
         run: |
           for bin in dist/hone_darwin_*/hone; do
+            dir="$(basename "$(dirname "$bin")")"
             echo "Notarizing $bin..."
-            ZIP="/tmp/hone-$(basename "$(dirname "$bin")").zip"
+            ZIP="/tmp/hone-${dir}.zip"
             rm -f "$ZIP"
             zip -j "$ZIP" "$bin"
-            xcrun notarytool submit "$ZIP" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_PWD" \
-              --team-id "$TEAM_ID" \
-              --wait
+
+            success=false
+            for attempt in 1 2 3; do
+              echo "  Attempt $attempt/3..."
+              if xcrun notarytool submit "$ZIP" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_PWD" \
+                --team-id "$TEAM_ID" \
+                --wait --timeout 15m \
+                --output-format json > /tmp/notarize-result.json 2>&1; then
+
+                status=$(cat /tmp/notarize-result.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+                if [ "$status" = "Accepted" ]; then
+                  echo "  Notarization accepted."
+                  success=true
+                  break
+                fi
+              fi
+
+              if [ "$attempt" -lt 3 ]; then
+                echo "  Retrying in 2 minutes..."
+                sleep 120
+              fi
+            done
+
+            if [ "$success" != "true" ]; then
+              echo "::error::Notarization failed for $dir after 3 attempts"
+              cat /tmp/notarize-result.json || true
+              sub_id=$(cat /tmp/notarize-result.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+              if [ -n "$sub_id" ]; then
+                echo "Fetching notarization log for $sub_id..."
+                xcrun notarytool log "$sub_id" \
+                  --apple-id "$APPLE_ID" \
+                  --password "$APPLE_PWD" \
+                  --team-id "$TEAM_ID" || true
+              fi
+              exit 1
+            fi
+
             rm -f "$ZIP"
           done
 
