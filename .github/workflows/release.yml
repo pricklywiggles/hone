@@ -110,6 +110,9 @@ jobs:
           name: darwin-binaries
           path: dist
 
+      - name: Restore executable permissions
+        run: chmod +x dist/hone_darwin_*/hone
+
       - name: Notarize binaries
         env:
           APPLE_ID: ${{ secrets.MACOS_NOTARIZE_APPLE_ID }}
@@ -131,7 +134,7 @@ jobs:
                 --password "$APPLE_PWD" \
                 --team-id "$TEAM_ID" \
                 --wait --timeout 15m \
-                --output-format json > /tmp/notarize-result.json 2>&1; then
+                --output-format json > /tmp/notarize-result.json; then
 
                 status=$(cat /tmp/notarize-result.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
                 if [ "$status" = "Accepted" ]; then
