@@ -2,7 +2,7 @@
   <img src="docs/assets/splash.gif" alt="hone demo" width="600">
 </p>
 
-**Practice coding problems with spaced repetition — from your terminal.**
+**Practice coding problems with spaced repetition from your terminal.**
 
 hone schedules LeetCode, NeetCode, and GeeksForGeeks problems using the SM-2 algorithm, opens them in your browser, detects submission results automatically, and tells you exactly when to revisit each one. No self-reporting, no manual ratings — just solve the problem and hone tracks the rest.
 
