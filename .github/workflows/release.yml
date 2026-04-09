@@ -143,13 +143,20 @@ jobs:
                 --password "$APPLE_PWD" \
                 --team-id "$TEAM_ID" \
                 --wait --timeout 15m \
-                --output-format json > /tmp/notarize-result.json || true
+                --output-format json > /tmp/notarize-result.json 2>&1 || true
 
               echo "  Result:"
               cat /tmp/notarize-result.json || true
               echo ""
 
-              status=$(cat /tmp/notarize-result.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+              status=$(python3 -c "
+import sys, json
+try:
+    d = json.load(open('/tmp/notarize-result.json'))
+    print(d.get('status', ''))
+except Exception:
+    print('')
+")
               if [ "$status" = "Accepted" ]; then
                 echo "  Notarization accepted."
                 success=true
@@ -165,7 +172,14 @@ jobs:
             if [ "$success" != "true" ]; then
               echo "::error::Notarization failed for $dir after 3 attempts"
               cat /tmp/notarize-result.json || true
-              sub_id=$(cat /tmp/notarize-result.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+              sub_id=$(python3 -c "
+import json
+try:
+    d = json.load(open('/tmp/notarize-result.json'))
+    print(d.get('id', ''))
+except Exception:
+    print('')
+")
               if [ -n "$sub_id" ]; then
                 echo "Fetching notarization log for $sub_id..."
                 xcrun notarytool log "$sub_id" \
