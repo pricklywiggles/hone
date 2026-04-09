@@ -138,19 +138,22 @@ jobs:
             success=false
             for attempt in 1 2 3; do
               echo "  Attempt $attempt/3..."
-              if xcrun notarytool submit "$ZIP" \
+              xcrun notarytool submit "$ZIP" \
                 --apple-id "$APPLE_ID" \
                 --password "$APPLE_PWD" \
                 --team-id "$TEAM_ID" \
                 --wait --timeout 15m \
-                --output-format json > /tmp/notarize-result.json; then
+                --output-format json > /tmp/notarize-result.json || true
 
-                status=$(cat /tmp/notarize-result.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
-                if [ "$status" = "Accepted" ]; then
-                  echo "  Notarization accepted."
-                  success=true
-                  break
-                fi
+              echo "  Result:"
+              cat /tmp/notarize-result.json || true
+              echo ""
+
+              status=$(cat /tmp/notarize-result.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+              if [ "$status" = "Accepted" ]; then
+                echo "  Notarization accepted."
+                success=true
+                break
               fi
 
               if [ "$attempt" -lt 3 ]; then
