@@ -159,7 +159,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
 			}
 		case "d":
-			if m.state == practiceWaiting || m.state == practiceDone {
+			if m.state == practiceDone {
 				m.showDebug = !m.showDebug
 				m.debugScroll = 0
 				if m.showDebug && m.candidates == nil {
@@ -167,11 +167,11 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "j", "down":
-			if m.showDebug {
+			if m.showDebug && m.state == practiceDone {
 				m.debugScroll++
 			}
 		case "k", "up":
-			if m.showDebug && m.debugScroll > 0 {
+			if m.showDebug && m.state == practiceDone && m.debugScroll > 0 {
 				m.debugScroll--
 			}
 		}
