@@ -117,6 +117,30 @@ func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bo
 	return nil, nil, false, err
 }
 
+// Candidate is a problem with its next review date, used for debug display.
+type Candidate struct {
+	Title          string `db:"title"`
+	Difficulty     string `db:"difficulty"`
+	NextReviewDate string `db:"next_review_date"`
+}
+
+// ListCandidates returns all problems in pick order (same as PickNext but unbounded).
+func ListCandidates(db *sqlx.DB, filter PracticeFilter) ([]Candidate, error) {
+	filterJoin, filterArgs := filterClauses(filter)
+	orderBy := pickOrderBy(filter)
+
+	query := `
+		SELECT p.title, p.difficulty, ps.next_review_date
+		FROM problems p
+		JOIN problem_srs ps ON ps.problem_id = p.id` +
+		filterJoin + `
+		ORDER BY ` + orderBy
+
+	var rows []Candidate
+	err := db.Select(&rows, query, filterArgs...)
+	return rows, err
+}
+
 const difficultyOrder = `CASE p.difficulty WHEN 'easy' THEN 1 WHEN 'medium' THEN 2 WHEN 'hard' THEN 3 ELSE 4 END`
 
 func pickOrderBy(f PracticeFilter) string {

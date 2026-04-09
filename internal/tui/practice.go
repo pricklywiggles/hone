@@ -51,6 +51,7 @@ type practiceSessionReadyMsg struct {
 	resultCh <-chan monitor.Result
 }
 type practiceSessionErrMsg struct{ err error }
+type practiceDebugMsg struct{ candidates []store.Candidate }
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -74,9 +75,12 @@ type PracticeModel struct {
 	db         *sqlx.DB
 	profileDir string
 	filter     store.PracticeFilter
-	help       help.Model
-	width      int
-	height     int
+	help         help.Model
+	width        int
+	height       int
+	showDebug    bool
+	debugScroll  int
+	candidates   []store.Candidate
 }
 
 func NewPracticeModel(
@@ -154,6 +158,22 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = practiceDone
 				return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
 			}
+		case "d":
+			if m.state == practiceWaiting || m.state == practiceDone {
+				m.showDebug = !m.showDebug
+				m.debugScroll = 0
+				if m.showDebug && m.candidates == nil {
+					return m, m.loadCandidates()
+				}
+			}
+		case "j", "down":
+			if m.showDebug {
+				m.debugScroll++
+			}
+		case "k", "up":
+			if m.showDebug && m.debugScroll > 0 {
+				m.debugScroll--
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -193,6 +213,10 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.newlyMastered = msg.newlyMastered
 		m.todayStats = msg.todayStats
 
+	case practiceDebugMsg:
+		m.candidates = msg.candidates
+		return m, nil
+
 	case practiceNextMsg:
 		ctx, cancel := context.WithCancel(context.Background())
 		m.problem = msg.problem
@@ -204,6 +228,8 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.quality = 0
 		m.newlyMastered = false
 		m.todayStats = store.TodayStats{}
+		m.candidates = nil
+		m.debugScroll = 0
 		m.state = practiceWaiting
 		m.ctx = ctx
 		m.cancelFn = cancel
@@ -264,6 +290,13 @@ func (m PracticeModel) fetchNext() tea.Cmd {
 			return practiceNoNextMsg{}
 		}
 		return practiceNextMsg{problem: problem, srsState: srsState, isDue: isDue}
+	}
+}
+
+func (m PracticeModel) loadCandidates() tea.Cmd {
+	return func() tea.Msg {
+		candidates, _ := store.ListCandidates(m.db, m.filter)
+		return practiceDebugMsg{candidates: candidates}
 	}
 }
 
@@ -330,9 +363,72 @@ func (m PracticeModel) renderLayout(card string, keys help.KeyMap) string {
 		return "\n" + card + "\n\n" + helpBar
 	}
 
+	if m.showDebug {
+		debugPanel := m.renderDebugPanel()
+		body := card + "\n\n" + debugPanel
+		availH := m.height - 2
+		centered := lipgloss.PlaceHorizontal(m.width, lipgloss.Center, body)
+		lines := strings.Split(centered, "\n")
+		if len(lines) < availH {
+			centered += strings.Repeat("\n", availH-len(lines))
+		}
+		return centered + "\n" + helpBar
+	}
+
 	availH := m.height - 2
 	centered := lipgloss.Place(m.width, availH, lipgloss.Center, lipgloss.Center, card)
 	return centered + "\n" + helpBar
+}
+
+func (m PracticeModel) renderDebugPanel() string {
+	if m.candidates == nil {
+		return prDimStyle.Render("loading candidates…")
+	}
+	if len(m.candidates) == 0 {
+		return prDimStyle.Render("no candidates")
+	}
+
+	header := prDimStyle.Render(fmt.Sprintf("── candidates (%d) ──", len(m.candidates)))
+
+	maxVisible := 15
+	if m.height > 0 {
+		cardH := lipgloss.Height(prCardBase.Render(""))
+		maxVisible = m.height - cardH - 8
+		if maxVisible < 5 {
+			maxVisible = 5
+		}
+	}
+	if m.debugScroll > len(m.candidates)-maxVisible {
+		m.debugScroll = len(m.candidates) - maxVisible
+	}
+	if m.debugScroll < 0 {
+		m.debugScroll = 0
+	}
+
+	end := m.debugScroll + maxVisible
+	if end > len(m.candidates) {
+		end = len(m.candidates)
+	}
+
+	var lines []string
+	lines = append(lines, header)
+	for i := m.debugScroll; i < end; i++ {
+		c := m.candidates[i]
+		diffColor := prDiffColors[c.Difficulty]
+		marker := " "
+		if m.problem != nil && c.Title == m.problem.Title {
+			marker = prTimerStyle.Render("▸")
+		}
+		diff := lipgloss.NewStyle().Foreground(diffColor).Width(7).Render(c.Difficulty)
+		title := prDimStyle.Render(c.Title)
+		date := lipgloss.NewStyle().Foreground(colorDimBg).Render(c.NextReviewDate)
+		lines = append(lines, fmt.Sprintf(" %s %s %s  %s", marker, diff, title, date))
+	}
+	if end < len(m.candidates) {
+		lines = append(lines, prDimStyle.Render(fmt.Sprintf("   … %d more (j/k to scroll)", len(m.candidates)-end)))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (m PracticeModel) View() string {
