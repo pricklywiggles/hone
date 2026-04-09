@@ -113,6 +113,15 @@ jobs:
       - name: Restore executable permissions
         run: chmod +x dist/hone_darwin_*/hone
 
+      - name: Verify code signatures survived artifact transfer
+        run: |
+          for bin in dist/hone_darwin_*/hone; do
+            echo "Verifying $bin..."
+            codesign --verify --deep --strict "$bin"
+            codesign -dv "$bin" 2>&1 | head -3
+            echo ""
+          done
+
       - name: Notarize binaries
         env:
           APPLE_ID: ${{ secrets.MACOS_NOTARIZE_APPLE_ID }}
