@@ -39,6 +39,7 @@ type practiceSavedMsg struct {
 	quality     int
 	newlyMastered bool
 	todayStats  store.TodayStats
+	frozen      bool
 }
 type practiceNextMsg struct {
 	problem  *store.Problem
@@ -78,6 +79,8 @@ type PracticeModel struct {
 	help         help.Model
 	width        int
 	height       int
+	freePractice bool
+	frozen       bool
 	showDebug    bool
 	debugScroll  int
 	candidates   []store.Candidate
@@ -211,6 +214,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.nextDate = msg.nextDate
 		m.quality = msg.quality
 		m.newlyMastered = msg.newlyMastered
+		m.frozen = msg.frozen
 		m.todayStats = msg.todayStats
 
 	case practiceDebugMsg:
@@ -219,6 +223,9 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case practiceNextMsg:
 		ctx, cancel := context.WithCancel(context.Background())
+		if !msg.isDue && !m.freePractice {
+			m.freePractice = true
+		}
 		m.problem = msg.problem
 		m.srsState = msg.srsState
 		m.isDue = msg.isDue
@@ -227,6 +234,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.nextDate = ""
 		m.quality = 0
 		m.newlyMastered = false
+		m.frozen = false
 		m.todayStats = store.TodayStats{}
 		m.candidates = nil
 		m.debugScroll = 0
@@ -268,9 +276,24 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 			quality = 1
 		}
 
+		_ = store.RecordAttempt(m.db, m.problem.ID, m.startedAt, r.CompletedAt, result, durationSec, quality)
+
+		// Upcoming problems that are solved successfully don't advance SRS —
+		// same-day re-solves prove working memory, not durable recall.
+		// Failures still reset SRS since they're real evidence of forgetting.
+		frozen := !m.isDue && r.Success
+		if frozen {
+			today, _ := store.GetTodayStats(m.db)
+			return practiceSavedMsg{
+				nextDate:   m.srsState.NextReviewDate,
+				quality:    quality,
+				frozen:     true,
+				todayStats: today,
+			}
+		}
+
 		wasMastered := m.srsState.MasteredBefore == 1
 		newState := srs.UpdateSRS(*m.srsState, r.Success, durationMin, thresholds, time.Now())
-		_ = store.RecordAttempt(m.db, m.problem.ID, m.startedAt, r.CompletedAt, result, durationSec, quality)
 		_ = store.SaveSRSState(m.db, newState)
 
 		today, _ := store.GetTodayStats(m.db)
@@ -455,8 +478,13 @@ func (m PracticeModel) viewWaiting() string {
 	innerW := prCardWidth - 2 - 6
 	timer := lipgloss.PlaceHorizontal(innerW, lipgloss.Center, prTimerStyle.Render(formatDuration(elapsed)))
 
+	header := prHeaderStyle.Render("Practice")
+	if m.freePractice {
+		header = prHeaderStyle.Render("Free Practice")
+	}
+
 	content := lipgloss.JoinVertical(lipgloss.Left,
-		prHeaderStyle.Render("Practice"),
+		header,
 		"",
 		prTitleStyle.Render(m.problem.Title),
 		diffStyle.Render(m.problem.Difficulty)+dot+prDimStyle.Render(m.problem.Platform)+dot+dueLabel,
@@ -464,7 +492,17 @@ func (m PracticeModel) viewWaiting() string {
 		timer,
 	)
 
-	card := prCardBase.BorderForeground(colorAccent).Render(content)
+	borderColor := colorAccent
+	var banner string
+	if m.freePractice {
+		banner = prDimStyle.Render("All caught up! SRS paused for successful solves.")
+		borderColor = colorDimBg
+	}
+
+	card := prCardBase.BorderForeground(borderColor).Render(content)
+	if banner != "" {
+		card = banner + "\n\n" + card
+	}
 	return m.renderLayout(card, practiceWaitingKeyMap{})
 }
 
@@ -481,6 +519,9 @@ func (m PracticeModel) viewDone() string {
 	}
 
 	nextLine := prDimStyle.Render("next review  ") + lipgloss.NewStyle().Foreground(colorBright).Render(m.nextDate)
+	if m.frozen {
+		nextLine += prDimStyle.Render("  (SRS unchanged)")
+	}
 	qualityLine := prDimStyle.Render("quality  ") + lipgloss.NewStyle().Foreground(colorBright).Render(fmt.Sprintf("%d/5", m.quality))
 	todayLine := prDimStyle.Render("today  ") + lipgloss.NewStyle().Foreground(colorBright).Render(
 		fmt.Sprintf("%d/%d solved", m.todayStats.Succeeded, m.todayStats.Attempted))
