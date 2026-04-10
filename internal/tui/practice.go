@@ -76,6 +76,7 @@ type PracticeModel struct {
 	db         *sqlx.DB
 	profileDir string
 	filter     store.PracticeFilter
+	queue      []store.QueueEntry
 	help         help.Model
 	width        int
 	height       int
@@ -89,18 +90,18 @@ type PracticeModel struct {
 func NewPracticeModel(
 	db *sqlx.DB,
 	profileDir string,
-	problem *store.Problem,
-	srsState *srs.ProblemSRS,
-	isDue bool,
+	queue []store.QueueEntry,
 	filter store.PracticeFilter,
 ) PracticeModel {
+	first := queue[0]
 	ctx, cancel := context.WithCancel(context.Background())
 	return PracticeModel{
 		db:         db,
 		profileDir: profileDir,
-		problem:    problem,
-		srsState:   srsState,
-		isDue:      isDue,
+		problem:    &first.Problem,
+		srsState:   &first.SRS,
+		isDue:      first.IsDue,
+		queue:      queue[1:],
 		startedAt:  time.Now(),
 		ctx:        ctx,
 		cancelFn:   cancel,
@@ -143,7 +144,14 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, Pop()
 		case "n", "enter":
 			if m.state == practiceDone {
-				return m, m.fetchNext()
+				if len(m.queue) == 0 {
+					return m, popNext()
+				}
+				entry := m.queue[0]
+				m.queue = m.queue[1:]
+				return m, func() tea.Msg {
+					return practiceNextMsg{problem: &entry.Problem, srsState: &entry.SRS, isDue: entry.IsDue}
+				}
 			}
 		case "p":
 			if m.state == practiceWaiting {
@@ -306,13 +314,9 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 	}
 }
 
-func (m PracticeModel) fetchNext() tea.Cmd {
+func popNext() tea.Cmd {
 	return func() tea.Msg {
-		problem, srsState, isDue, err := store.PickNext(m.db, m.filter)
-		if err != nil || problem == nil {
-			return practiceNoNextMsg{}
-		}
-		return practiceNextMsg{problem: problem, srsState: srsState, isDue: isDue}
+		return practiceNoNextMsg{}
 	}
 }
 

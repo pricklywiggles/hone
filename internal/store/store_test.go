@@ -269,6 +269,59 @@ func TestPickNext_TiebreakRandomWithoutPlaylist(t *testing.T) {
 	}
 }
 
+func TestListPickQueue(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium")
+	seedProblem(t, d, "leetcode", "longest-substring", "hard")
+
+	// problem 1 = yesterday (due), problem 2 = today (due), problem 3 = tomorrow (upcoming)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '-1 day') WHERE problem_id = 1`)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now') WHERE problem_id = 2`)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+1 day') WHERE problem_id = 3`)
+
+	queue, err := ListPickQueue(d, PracticeFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(queue))
+	}
+
+	// Due problems first, ordered by date (most overdue first)
+	if queue[0].Problem.Slug != "two-sum" || !queue[0].IsDue {
+		t.Errorf("queue[0]: expected two-sum (due), got %s (due=%v)", queue[0].Problem.Slug, queue[0].IsDue)
+	}
+	if queue[1].Problem.Slug != "add-two-numbers" || !queue[1].IsDue {
+		t.Errorf("queue[1]: expected add-two-numbers (due), got %s (due=%v)", queue[1].Problem.Slug, queue[1].IsDue)
+	}
+	// Upcoming last
+	if queue[2].Problem.Slug != "longest-substring" || queue[2].IsDue {
+		t.Errorf("queue[2]: expected longest-substring (upcoming), got %s (due=%v)", queue[2].Problem.Slug, queue[2].IsDue)
+	}
+}
+
+func TestListPickQueue_Empty(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	queue, err := ListPickQueue(d, PracticeFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue) != 0 {
+		t.Errorf("expected empty queue, got %d entries", len(queue))
+	}
+}
+
 func seedProblem(t *testing.T, d *sqlx.DB, platform, slug, difficulty string) {
 	t.Helper()
 	d.MustExec(

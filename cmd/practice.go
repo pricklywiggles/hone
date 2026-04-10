@@ -22,16 +22,16 @@ var practiceCmd = &cobra.Command{
 			PlaylistID: config.ActivePlaylistID(),
 			TopicID:    config.ActiveTopicID(),
 		}
-		problem, srsState, isDue, err := store.PickNext(appDB, filter)
+		queue, err := store.ListPickQueue(appDB, filter)
 		if err != nil {
 			return err
 		}
-		if problem == nil {
+		if len(queue) == 0 {
 			fmt.Println("No problems yet. Add some with: hone add <url>")
 			return nil
 		}
 
-		m := tui.NewPracticeModel(appDB, config.BrowserProfileDir(), problem, srsState, isDue, filter)
+		m := tui.NewPracticeModel(appDB, config.BrowserProfileDir(), queue, filter)
 		router := tui.NewRouter(m)
 		_, err = tui.Run(router)
 		return err

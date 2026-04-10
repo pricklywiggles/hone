@@ -175,11 +175,9 @@ func (m ProblemsTabModel) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				return nil
 			}
-			isDue := !row.IsOverdue && isToday(row.NextReview)
-			if row.IsOverdue {
-				isDue = true
-			}
-			practiceModel := NewPracticeModel(m.db, m.profileDir, problem, srsState, isDue, m.filter)
+			isDue := row.IsOverdue || isToday(row.NextReview)
+			queue := []store.QueueEntry{{Problem: *problem, SRS: *srsState, IsDue: isDue}}
+			practiceModel := NewPracticeModel(m.db, m.profileDir, queue, m.filter)
 			return PushMsg{Model: practiceModel}
 		}
 	}

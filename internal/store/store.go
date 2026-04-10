@@ -141,6 +141,52 @@ func ListCandidates(db *sqlx.DB, filter PracticeFilter) ([]Candidate, error) {
 	return rows, err
 }
 
+// QueueEntry pairs a problem with its SRS state and due status for the practice queue.
+type QueueEntry struct {
+	Problem Problem
+	SRS     srs.ProblemSRS
+	IsDue   bool
+}
+
+// ListPickQueue returns all candidate problems in pick order: due problems first,
+// then upcoming. Used to pre-compile the practice session queue.
+func ListPickQueue(db *sqlx.DB, filter PracticeFilter) ([]QueueEntry, error) {
+	filterJoin, filterArgs := filterClauses(filter)
+	orderBy := pickOrderBy(filter)
+
+	buildQuery := func(dueCond string) string {
+		return `
+			SELECT` + pickCols + `
+			FROM problems p
+			JOIN problem_srs ps ON ps.problem_id = p.id` +
+			filterJoin + `
+			WHERE ` + dueCond + `
+			ORDER BY ` + orderBy
+	}
+
+	var entries []QueueEntry
+	for _, stage := range []struct {
+		cond  string
+		isDue bool
+	}{
+		{"ps.next_review_date <= date('now')", true},
+		{"ps.next_review_date > date('now')", false},
+	} {
+		var rows []pickRow
+		if err := db.Select(&rows, buildQuery(stage.cond), filterArgs...); err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			entries = append(entries, QueueEntry{
+				Problem: *r.problem(),
+				SRS:     *r.srsState(),
+				IsDue:   stage.isDue,
+			})
+		}
+	}
+	return entries, nil
+}
+
 const difficultyOrder = `CASE p.difficulty WHEN 'easy' THEN 1 WHEN 'medium' THEN 2 WHEN 'hard' THEN 3 ELSE 4 END`
 
 func pickOrderBy(f PracticeFilter) string {

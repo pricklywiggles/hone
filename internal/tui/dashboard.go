@@ -118,11 +118,11 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				db := m.db
 				profileDir := m.profileDir
 				return m, func() tea.Msg {
-					problem, srsState, isDue, err := store.PickNext(db, filter)
-					if err != nil || problem == nil {
+					queue, err := store.ListPickQueue(db, filter)
+					if err != nil || len(queue) == 0 {
 						return nil
 					}
-					return PushMsg{Model: NewPracticeModel(db, profileDir, problem, srsState, isDue, filter)}
+					return PushMsg{Model: NewPracticeModel(db, profileDir, queue, filter)}
 				}
 			}
 		case "a":
