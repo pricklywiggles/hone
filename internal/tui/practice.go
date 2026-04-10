@@ -52,7 +52,6 @@ type practiceSessionReadyMsg struct {
 	resultCh <-chan monitor.Result
 }
 type practiceSessionErrMsg struct{ err error }
-type practiceDebugMsg struct{ candidates []store.Candidate }
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -84,7 +83,6 @@ type PracticeModel struct {
 	frozen       bool
 	showDebug    bool
 	debugScroll  int
-	candidates   []store.Candidate
 }
 
 func NewPracticeModel(
@@ -173,9 +171,6 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.state == practiceDone {
 				m.showDebug = !m.showDebug
 				m.debugScroll = 0
-				if m.showDebug && m.candidates == nil {
-					return m, m.loadCandidates()
-				}
 			}
 		case "j", "down":
 			if m.showDebug && m.state == practiceDone {
@@ -225,10 +220,6 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.frozen = msg.frozen
 		m.todayStats = msg.todayStats
 
-	case practiceDebugMsg:
-		m.candidates = msg.candidates
-		return m, nil
-
 	case practiceNextMsg:
 		ctx, cancel := context.WithCancel(context.Background())
 		if !msg.isDue && !m.freePractice {
@@ -244,7 +235,6 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.newlyMastered = false
 		m.frozen = false
 		m.todayStats = store.TodayStats{}
-		m.candidates = nil
 		m.debugScroll = 0
 		m.state = practiceWaiting
 		m.ctx = ctx
@@ -317,20 +307,6 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 func popNext() tea.Cmd {
 	return func() tea.Msg {
 		return practiceNoNextMsg{}
-	}
-}
-
-func (m PracticeModel) loadCandidates() tea.Cmd {
-	candidates := make([]store.Candidate, len(m.queue))
-	for i, e := range m.queue {
-		candidates[i] = store.Candidate{
-			Title:          e.Problem.Title,
-			Difficulty:     e.Problem.Difficulty,
-			NextReviewDate: e.SRS.NextReviewDate,
-		}
-	}
-	return func() tea.Msg {
-		return practiceDebugMsg{candidates: candidates}
 	}
 }
 
@@ -415,14 +391,30 @@ func (m PracticeModel) renderLayout(card string, keys help.KeyMap) string {
 }
 
 func (m PracticeModel) renderDebugPanel() string {
-	if m.candidates == nil {
-		return prDimStyle.Render("loading candidates…")
+	total := 1 + len(m.queue) // current problem + remaining
+	header := prDimStyle.Render(fmt.Sprintf("── queue (%d) ──", total))
+
+	type entry struct {
+		title, difficulty, date string
+		current                 bool
 	}
-	if len(m.candidates) == 0 {
-		return prDimStyle.Render("no candidates")
+	entries := make([]entry, 0, total)
+	if m.problem != nil {
+		entries = append(entries, entry{
+			title: m.problem.Title, difficulty: m.problem.Difficulty,
+			date: m.srsState.NextReviewDate, current: true,
+		})
+	}
+	for _, e := range m.queue {
+		entries = append(entries, entry{
+			title: e.Problem.Title, difficulty: e.Problem.Difficulty,
+			date: e.SRS.NextReviewDate,
+		})
 	}
 
-	header := prDimStyle.Render(fmt.Sprintf("── candidates (%d) ──", len(m.candidates)))
+	if len(entries) == 0 {
+		return prDimStyle.Render("no candidates")
+	}
 
 	maxVisible := 15
 	if m.height > 0 {
@@ -432,34 +424,34 @@ func (m PracticeModel) renderDebugPanel() string {
 			maxVisible = 5
 		}
 	}
-	if m.debugScroll > len(m.candidates)-maxVisible {
-		m.debugScroll = len(m.candidates) - maxVisible
+	if m.debugScroll > len(entries)-maxVisible {
+		m.debugScroll = len(entries) - maxVisible
 	}
 	if m.debugScroll < 0 {
 		m.debugScroll = 0
 	}
 
 	end := m.debugScroll + maxVisible
-	if end > len(m.candidates) {
-		end = len(m.candidates)
+	if end > len(entries) {
+		end = len(entries)
 	}
 
 	var lines []string
 	lines = append(lines, header)
 	for i := m.debugScroll; i < end; i++ {
-		c := m.candidates[i]
-		diffColor := prDiffColors[c.Difficulty]
+		e := entries[i]
+		diffColor := prDiffColors[e.difficulty]
 		marker := " "
-		if m.problem != nil && c.Title == m.problem.Title {
+		if e.current {
 			marker = prTimerStyle.Render("▸")
 		}
-		diff := lipgloss.NewStyle().Foreground(diffColor).Width(7).Render(c.Difficulty)
-		title := prDimStyle.Render(c.Title)
-		date := lipgloss.NewStyle().Foreground(colorDimBg).Render(c.NextReviewDate)
+		diff := lipgloss.NewStyle().Foreground(diffColor).Width(7).Render(e.difficulty)
+		title := prDimStyle.Render(e.title)
+		date := lipgloss.NewStyle().Foreground(colorDimBg).Render(e.date)
 		lines = append(lines, fmt.Sprintf(" %s %s %s  %s", marker, diff, title, date))
 	}
-	if end < len(m.candidates) {
-		lines = append(lines, prDimStyle.Render(fmt.Sprintf("   … %d more (j/k to scroll)", len(m.candidates)-end)))
+	if end < len(entries) {
+		lines = append(lines, prDimStyle.Render(fmt.Sprintf("   … %d more (j/k to scroll)", len(entries)-end)))
 	}
 
 	return strings.Join(lines, "\n")
