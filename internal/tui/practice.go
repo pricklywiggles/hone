@@ -321,8 +321,15 @@ func popNext() tea.Cmd {
 }
 
 func (m PracticeModel) loadCandidates() tea.Cmd {
+	candidates := make([]store.Candidate, len(m.queue))
+	for i, e := range m.queue {
+		candidates[i] = store.Candidate{
+			Title:          e.Problem.Title,
+			Difficulty:     e.Problem.Difficulty,
+			NextReviewDate: e.SRS.NextReviewDate,
+		}
+	}
 	return func() tea.Msg {
-		candidates, _ := store.ListCandidates(m.db, m.filter)
 		return practiceDebugMsg{candidates: candidates}
 	}
 }
