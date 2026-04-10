@@ -28,11 +28,13 @@ const (
 	practiceWaiting practiceState = iota
 	practiceDone
 	practiceError
+	practiceAllCaughtUp
 )
 
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 type practiceTickMsg struct{}
+type practiceAnimTickMsg struct{}
 type practiceResultMsg monitor.Result
 type practiceSavedMsg struct {
 	nextDate    string
@@ -79,10 +81,12 @@ type PracticeModel struct {
 	help         help.Model
 	width        int
 	height       int
-	freePractice bool
-	frozen       bool
-	showDebug    bool
-	debugScroll  int
+	freePractice    bool
+	frozen          bool
+	pendingEntry    *store.QueueEntry
+	animFrame       int
+	showDebug       bool
+	debugScroll     int
 }
 
 func NewPracticeModel(
@@ -135,18 +139,39 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		case "q", "esc":
+			if m.state == practiceAllCaughtUp {
+				m.cancelFn()
+				if m.session != nil {
+					m.session.Close()
+				}
+				return m, Pop()
+			}
 			m.cancelFn()
 			if m.session != nil {
 				m.session.Close()
 			}
 			return m, Pop()
 		case "n", "enter":
+			if m.state == practiceAllCaughtUp {
+				entry := m.pendingEntry
+				m.pendingEntry = nil
+				m.freePractice = true
+				return m, func() tea.Msg {
+					return practiceNextMsg{problem: &entry.Problem, srsState: &entry.SRS, isDue: entry.IsDue}
+				}
+			}
 			if m.state == practiceDone {
 				if len(m.queue) == 0 {
 					return m, popNext()
 				}
 				entry := m.queue[0]
 				m.queue = m.queue[1:]
+				if !entry.IsDue && !m.freePractice {
+					m.pendingEntry = &entry
+					m.state = practiceAllCaughtUp
+					m.animFrame = 0
+					return m, animTickCmd()
+				}
 				return m, func() tea.Msg {
 					return practiceNextMsg{problem: &entry.Problem, srsState: &entry.SRS, isDue: entry.IsDue}
 				}
@@ -190,6 +215,12 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case practiceTickMsg:
 		if m.state == practiceWaiting {
 			return m, tickCmd()
+		}
+
+	case practiceAnimTickMsg:
+		if m.state == practiceAllCaughtUp {
+			m.animFrame++
+			return m, animTickCmd()
 		}
 
 	case practiceSessionReadyMsg:
@@ -314,6 +345,14 @@ func popNext() tea.Cmd {
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(time.Time) tea.Msg { return practiceTickMsg{} })
+}
+
+func animTickCmd() tea.Cmd {
+	return tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg { return practiceAnimTickMsg{} })
+}
+
+var gradientColors = []lipgloss.Color{
+	"#7C8EF2", "#56B6C2", "#73D0A0", "#E5C07B", "#E0B464", "#D19A66", "#E06C75", "#8A7FBD",
 }
 
 func waitForResult(ch <-chan monitor.Result) tea.Cmd {
@@ -463,9 +502,56 @@ func (m PracticeModel) View() string {
 		return m.viewDone()
 	case practiceError:
 		return m.viewError()
+	case practiceAllCaughtUp:
+		return m.viewAllCaughtUp()
 	default:
 		return m.viewWaiting()
 	}
+}
+
+func (m PracticeModel) viewAllCaughtUp() string {
+	n := len(gradientColors)
+	borderColor := gradientColors[m.animFrame%n]
+
+	starColors := make([]lipgloss.Color, 5)
+	for i := range starColors {
+		starColors[i] = gradientColors[(m.animFrame+i)%n]
+	}
+
+	var stars strings.Builder
+	for _, c := range starColors {
+		stars.WriteString(lipgloss.NewStyle().Foreground(c).Render("★ "))
+	}
+	starLine := stars.String()
+
+	title := lipgloss.NewStyle().Bold(true).Foreground(colorMastered).Render("All caught up!")
+	remaining := len(m.queue) + 1
+	body := prDimStyle.Render(fmt.Sprintf(
+		"You've finished all %d problems due today.\n\n"+
+			"You can continue to practice %d upcoming\n"+
+			"problems — success won't change their due\n"+
+			"date, but failures will.",
+		m.todayStats.Attempted, remaining))
+	prompt := lipgloss.NewStyle().Foreground(colorBright).Render("Press enter to continue, q to quit")
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		starLine,
+		"",
+		title,
+		"",
+		body,
+		"",
+		prompt,
+		"",
+		starLine,
+	)
+
+	card := prCardBase.BorderForeground(borderColor).Render(content)
+	if m.width == 0 {
+		return "\n" + card
+	}
+	availH := m.height - 2
+	return lipgloss.Place(m.width, availH, lipgloss.Center, lipgloss.Center, card)
 }
 
 func (m PracticeModel) viewWaiting() string {
