@@ -42,24 +42,20 @@ This opens the dashboard and creates the database at `~/.local/share/hone/data.d
 Paste a LeetCode or NeetCode URL:
 
 ```sh
-hone add https://neetcode.io/problems/two-sum/question
+hone import --url https://neetcode.io/problems/two-sum/question
 ```
 
 hone opens a headless browser, scrapes the problem title, difficulty, and topics, then adds it to your library. The problem is immediately due for review.
 
 ### Batch import
 
-If you have a list of URLs:
+If you have a list of URLs, use the playlist-aware import (see [Import & Export](import-export.md)):
 
 ```sh
-hone add -f problems.txt
+hone import --playlist problems.txt
 ```
 
-Or use the playlist-aware import format (see [Import & Export](import-export.md)):
-
-```sh
-hone import my-list.txt
-```
+Or run `hone import` with no flags for a guided wizard.
 
 ---
 

@@ -62,7 +62,6 @@ For schema changes, add a new goose migration file in `internal/db/migrations/`.
 2. **Add the command in `cmd/`** — keep it thin; call the `internal/` package
 3. **Add a TUI model in `internal/tui/`** if the command needs interactive output
 4. **Update `docs/`** — add or update the relevant documentation page
-5. **Update `ROADMAP.md`** — mark the phase complete with a short summary
 
 ---
 

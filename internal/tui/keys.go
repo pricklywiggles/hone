@@ -163,3 +163,26 @@ func (addDoneKeyMap) ShortHelp() []key.Binding {
 	}
 }
 func (addDoneKeyMap) FullHelp() [][]key.Binding { return nil }
+
+// ── Wizard ──────────────────────────────────────────────────────────────────
+
+type wizardFileKeyMap struct{}
+
+func (wizardFileKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("up", "down"), key.WithHelp("↑↓", "navigate")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+	}
+}
+func (wizardFileKeyMap) FullHelp() [][]key.Binding { return nil }
+
+type wizardInputKeyMap struct{}
+
+func (wizardInputKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "confirm")),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+	}
+}
+func (wizardInputKeyMap) FullHelp() [][]key.Binding { return nil }

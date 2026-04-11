@@ -109,6 +109,22 @@ Monitor selectors need manual verification against the live site.
 
 ---
 
+## Debugging
+
+Set `HONE_DEBUG=1` to enable two debugging aids:
+
+- **Debug log** — all `debuglog.Log()` calls write timestamped entries to `~/.local/share/hone/debug.log`. Useful for tracing scrape and monitor execution.
+- **Page HTML dump** — after each scrape, the full page HTML is saved to `~/.local/share/hone/debug-page.html` so you can inspect exactly what Rod saw.
+
+```sh
+HONE_DEBUG=1 hone import --url https://newplatform.com/problems/example
+# then check ~/.local/share/hone/debug.log and debug-page.html
+```
+
+When selectors aren't matching, the HTML dump is the fastest way to see the actual DOM structure.
+
+---
+
 ## Checklist
 
 - [ ] `internal/platform/newplatform.go` — implements `Platform`, calls `Register` in `init()`

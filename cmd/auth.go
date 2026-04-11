@@ -59,7 +59,7 @@ var authCmd = &cobra.Command{
 			os.Remove(filepath.Join(profileDir, f))
 		}
 
-		fmt.Printf("Session saved. You can now use 'hone add' with %s URLs.\n", p.Name())
+		fmt.Printf("Session saved. You can now use 'hone import' with %s URLs.\n", p.Name())
 		return nil
 	},
 }

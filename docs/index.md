@@ -16,10 +16,11 @@ hone is a macOS CLI that tracks your LeetCode, NeetCode, and GeeksForGeeks sessi
 ## How it works
 
 ```
-hone                    # open the dashboard
-hone practice           # pick and launch the next due problem
-hone add <url>          # add a single problem by URL
-hone import file.txt    # bulk import with playlist grouping
+hone                             # open the dashboard
+hone practice                    # pick and launch the next due problem
+hone import --url <url>          # add a single problem by URL
+hone import --playlist file.txt  # bulk import with playlist grouping
+hone import                      # guided import wizard
 ```
 
 The **spaced repetition engine** uses a modified SM-2 algorithm to schedule reviews at increasing intervals. After each attempt, hone derives a quality score from your solve time — no self-reporting needed. Solve quickly and the interval grows; solve slowly and it stays shorter; fail and it resets to tomorrow. Problems you've mastered fade into the background, while problems you struggle with keep coming back until they stick.
@@ -47,7 +48,7 @@ go install .
 Then add your first problem and start practicing:
 
 ```sh
-hone add https://neetcode.io/problems/two-sum/question
+hone import --url https://neetcode.io/problems/two-sum/question
 hone practice
 ```
 

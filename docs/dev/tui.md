@@ -132,6 +132,19 @@ Called in `Update` when a `tea.WindowSizeMsg` arrives.
 
 ---
 
+## Wizard models
+
+`ImportWizardModel` and `ExportWizardModel` are multi-step flows built from `bubbles/list`, `bubbles/filepicker`, `bubbles/textinput`, and `bubbles/spinner`. Each wizard uses an integer state enum (e.g. `iwChooseType`, `iwChooseFile`, `iwRunning`, `iwDone`) and switches on it in `Update`/`View`.
+
+Key patterns:
+
+- **Shared helpers**: `wizardItem` (implements `list.Item`) and `newWizardList` create consistent selection lists across both wizards, styled with `colorAccent`.
+- **Back navigation**: Pressing Escape moves to the previous step. The export wizard's `handleBack()` centralizes this logic.
+- **Delegation**: Once the user finishes choosing options, the wizard delegates to existing models. The import wizard embeds `ImportModel` for playlist imports and `AddModel` for single-URL adds. The export wizard runs backup/playlist export functions directly.
+- **Altscreen mode**: Both wizards run via `tui.Run` (altscreen) since they use full-screen `bubbles/list` and `bubbles/filepicker` components.
+
+---
+
 ## Splash screen
 
 `SplashModel` wraps the router and shows the ASCII art intro before the first `WindowSizeMsg` is forwarded to the inner model. The inner model's `Init()` is called once the splash finishes, so it's correctly sized when activated.

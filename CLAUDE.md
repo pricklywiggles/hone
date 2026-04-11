@@ -51,7 +51,7 @@ You are building a Go CLI application called hone for macOS that helps users pra
 
 ## Default Behavior
 
-Running the CLI with no arguments opens the **statistics dashboard** as the landing page. This is the home screen of the application. From this TUI, the user can navigate to all other functionality: starting a practice session, adding problems, managing playlists, and filtering by topic. Subcommands (e.g. `hone add`, `hone practice`) provide direct access to specific features for users who prefer it.
+Running the CLI with no arguments opens the **statistics dashboard** as the landing page. This is the home screen of the application. From this TUI, the user can navigate to all other functionality: starting a practice session, adding problems, managing playlists, and filtering by topic. Subcommands (e.g. `hone import`, `hone practice`) provide direct access to specific features for users who prefer it.
 
 ## Data Model
 
@@ -128,12 +128,14 @@ When all due problems have been completed, the session enters free practice. Suc
 
 - `hone` (no args) — open the stats dashboard / home screen
 - `hone practice` — show start screen with due count, then launch the next problem
-- `hone add` — parse a pasted URL to extract platform and slug, scrape the page, and create a problem entry
-- `hone add -f FILE` — batch import from a flat URL list (one per line)
-- `hone import FILE` — playlist-aware bulk import; `#Name` lines define playlist boundaries
-- `hone export` — export problems grouped by playlist in human-readable format (round-trips with `hone import`)
-- `hone export --backup` — full JSON dump of all data (problems, SRS state, attempts, playlists, config)
-- `hone init BACKUPFILE` — restore from a `--backup` JSON file; only works if DB doesn't exist yet
+- `hone import` — guided import wizard (no flags); or use flags:
+  - `hone import --url URL` — add a single problem by URL
+  - `hone import --playlist FILE` — playlist-aware bulk import; `# Name` lines define playlists
+  - `hone import --backup FILE` — restore from JSON backup; only works if DB doesn't exist yet
+- `hone export` — guided export wizard (no flags); or use flags:
+  - `hone export --backup [-o FILE]` — full JSON dump of all data
+  - `hone export --playlist [-o FILE]` — all playlists in text format
+  - `hone export --playlist NAME [-o FILE]` — single playlist by name
 - `hone playlist create|select|list` — manage playlists
 - `hone auth [platform]` — save a browser session for scraping authenticated pages
 - `hone stats` — statistics dashboard (same as no-args)

@@ -121,7 +121,7 @@ func ExportPlaylistFormat(db *sqlx.DB) (string, error) {
 			FROM problems p
 			JOIN playlist_problems pp ON pp.problem_id = p.id
 			WHERE pp.playlist_id = ?
-			ORDER BY p.platform, p.slug`, pl.ID)
+			ORDER BY pp.position, p.platform, p.slug`, pl.ID)
 		if err != nil {
 			return "", err
 		}
@@ -140,6 +140,42 @@ func ExportPlaylistFormat(db *sqlx.DB) (string, error) {
 		}
 	}
 
+	return sb.String(), nil
+}
+
+// ExportSinglePlaylistFormat produces import-compatible text for a single
+// playlist, identified by name.
+func ExportSinglePlaylistFormat(db *sqlx.DB, name string) (string, error) {
+	type urlRow struct {
+		Platform string `db:"platform"`
+		Slug     string `db:"slug"`
+	}
+
+	var playlistID int
+	err := db.Get(&playlistID, `SELECT id FROM playlists WHERE name = ?`, name)
+	if err != nil {
+		return "", fmt.Errorf("playlist %q not found", name)
+	}
+
+	var members []urlRow
+	err = db.Select(&members, `
+		SELECT p.platform, p.slug
+		FROM problems p
+		JOIN playlist_problems pp ON pp.problem_id = p.id
+		WHERE pp.playlist_id = ?
+		ORDER BY pp.position, p.platform, p.slug`, playlistID)
+	if err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	sb.WriteString("# ")
+	sb.WriteString(name)
+	sb.WriteByte('\n')
+	for _, r := range members {
+		sb.WriteString(config.BuildURL(r.Platform, r.Slug))
+		sb.WriteByte('\n')
+	}
 	return sb.String(), nil
 }
 
@@ -212,7 +248,7 @@ func loadPlaylistBackups(db *sqlx.DB) ([]PlaylistBackup, error) {
 		FROM playlists pl
 		JOIN playlist_problems pp ON pp.playlist_id = pl.id
 		JOIN problems p ON p.id = pp.problem_id
-		ORDER BY pl.name, p.platform, p.slug`)
+		ORDER BY pl.name, pp.position, p.platform, p.slug`)
 	if err != nil {
 		return nil, err
 	}
