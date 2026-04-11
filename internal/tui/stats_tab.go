@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jmoiron/sqlx"
@@ -67,18 +69,30 @@ type StatsTabModel struct {
 	recent        []store.RecentAttempt
 	practiceStats *store.PlaylistStats
 	height        int
-	scrollOffset  int
+	vp            viewport.Model
 	db            *sqlx.DB
 	filter        store.PracticeFilter
 	help          help.Model
 }
 
 func NewStatsTabModel(db *sqlx.DB, filter store.PracticeFilter, height int) StatsTabModel {
-	return StatsTabModel{db: db, filter: filter, height: height, help: newHelpModel()}
+	vp := viewport.New(0, 0)
+	vp.KeyMap = viewport.KeyMap{
+		Up:           key.NewBinding(key.WithKeys("up", "k")),
+		Down:         key.NewBinding(key.WithKeys("down", "j")),
+		PageUp:       key.NewBinding(key.WithKeys("pgup")),
+		PageDown:     key.NewBinding(key.WithKeys("pgdown")),
+		HalfPageUp:   key.NewBinding(key.WithKeys("ctrl+u")),
+		HalfPageDown: key.NewBinding(key.WithKeys("ctrl+d")),
+	}
+	return StatsTabModel{db: db, filter: filter, height: height, vp: vp, help: newHelpModel()}
 }
 
 func (m StatsTabModel) withHeight(h int) StatsTabModel {
 	m.height = h
+	if m.loaded {
+		m.syncViewport()
+	}
 	return m
 }
 
@@ -139,7 +153,8 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loaded = true
 		m.loading = false
 		m.err = nil
-		m.scrollOffset = 0
+		m.vp.GotoTop()
+		m.syncViewport()
 		return m, nil
 
 	case statsErrMsg:
@@ -148,50 +163,27 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "r":
+		if msg.String() == "r" {
 			m.loading = true
 			return m, m.loadCmd()
-		case "j", "down":
-			m.scrollOffset++
-		case "k", "up":
-			m.scrollOffset--
-		case "pgdown", "ctrl+d":
-			page := m.height - 12
-			if page < 1 {
-				page = 1
-			}
-			m.scrollOffset += page
-		case "pgup", "ctrl+u":
-			page := m.height - 12
-			if page < 1 {
-				page = 1
-			}
-			m.scrollOffset -= page
-		}
-		if m.scrollOffset < 0 {
-			m.scrollOffset = 0
-		}
-		if m.loaded {
-			m.clampScroll()
 		}
 	}
-	return m, nil
+
+	var cmd tea.Cmd
+	m.vp, cmd = m.vp.Update(msg)
+	return m, cmd
 }
 
-func (m *StatsTabModel) clampScroll() {
-	scrollContent := m.renderScrollableContent()
-	lines := strings.Split(scrollContent, "\n")
+func (m *StatsTabModel) syncViewport() {
+	content := m.renderScrollableContent()
 	header, _ := m.renderFixedHeader()
 	headerH := lipgloss.Height(header)
-	viewportH := m.height - headerH - 3
-	if viewportH < 1 {
-		viewportH = 1
+	vpH := m.height - headerH - 3
+	if vpH < 1 {
+		vpH = 1
 	}
-	scrollMax := max(len(lines)-viewportH, 0)
-	if m.scrollOffset > scrollMax {
-		m.scrollOffset = scrollMax
-	}
+	m.vp.Height = vpH
+	m.vp.SetContent(content)
 }
 
 func (m StatsTabModel) View() string {
@@ -203,53 +195,29 @@ func (m StatsTabModel) View() string {
 	}
 
 	fixedHeader, cardsWidth := m.renderFixedHeader()
-	scrollContent := m.renderScrollableContent()
+	vpH := m.vp.Height
 
-	headerH := lipgloss.Height(fixedHeader)
-	viewportH := m.height - headerH - 3
-	if viewportH < 1 {
-		viewportH = 1
-	}
+	// Get the viewport-rendered visible lines.
+	vpView := m.vp.View()
+	visible := strings.Split(vpView, "\n")
 
-	lines := strings.Split(scrollContent, "\n")
-	scrollMax := max(len(lines)-viewportH, 0)
-	offset := max(0, min(m.scrollOffset, scrollMax))
-
-	end := offset + viewportH
-	if end > len(lines) {
-		end = len(lines)
-	}
-	visible := lines[offset:end]
-
-	// Pad to fill viewport height
-	for len(visible) < viewportH {
+	// Pad to fill viewport height.
+	for len(visible) < vpH {
 		visible = append(visible, "")
 	}
 
-	// Scrollbar: only show when content overflows
-	showScrollbar := scrollMax > 0
-	if showScrollbar {
-		totalLines := len(lines)
-		thumbSize := viewportH * viewportH / totalLines
-		if thumbSize < 1 {
-			thumbSize = 1
-		}
-		thumbPos := 0
-		if scrollMax > 0 {
-			thumbPos = offset * (viewportH - thumbSize) / scrollMax
-		}
+	totalLines := m.vp.TotalLineCount()
+	scrollMax := totalLines - vpH
+	if scrollMax > 0 {
+		thumbSize := max(1, vpH*vpH/totalLines)
+		thumbPos := m.vp.YOffset * (vpH - thumbSize) / scrollMax
 
 		track := lipgloss.NewStyle().Foreground(colorDimBg).Render("│")
 		thumb := lipgloss.NewStyle().Foreground(colorDim).Render("█")
 
-		// Content width inside the box (box width minus padding 2*2 minus scrollbar gap)
 		contentW := cardsWidth - 2 - 4 - 2
 		for i, line := range visible {
-			lineW := lipgloss.Width(line)
-			gap := contentW - lineW
-			if gap < 0 {
-				gap = 0
-			}
+			gap := max(0, contentW-lipgloss.Width(line))
 			indicator := track
 			if i >= thumbPos && i < thumbPos+thumbSize {
 				indicator = thumb
