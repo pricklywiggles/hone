@@ -121,7 +121,7 @@ func ExportPlaylistFormat(db *sqlx.DB) (string, error) {
 			FROM problems p
 			JOIN playlist_problems pp ON pp.problem_id = p.id
 			WHERE pp.playlist_id = ?
-			ORDER BY p.platform, p.slug`, pl.ID)
+			ORDER BY pp.position, p.platform, p.slug`, pl.ID)
 		if err != nil {
 			return "", err
 		}
@@ -248,7 +248,7 @@ func loadPlaylistBackups(db *sqlx.DB) ([]PlaylistBackup, error) {
 		FROM playlists pl
 		JOIN playlist_problems pp ON pp.playlist_id = pl.id
 		JOIN problems p ON p.id = pp.problem_id
-		ORDER BY pl.name, p.platform, p.slug`)
+		ORDER BY pl.name, pp.position, p.platform, p.slug`)
 	if err != nil {
 		return nil, err
 	}

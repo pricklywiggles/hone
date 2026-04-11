@@ -201,7 +201,6 @@ func (m ImportWizardModel) updateInputURL(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if url == "" {
 			return m, nil
 		}
-		// Delegate to the standalone AddModel via Push.
 		addModel := NewAddModel(m.db, m.profileDir, url)
 		return addModel, addModel.Init()
 	}
@@ -232,8 +231,16 @@ func (m ImportWizardModel) updateRunning(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Delegate to embedded import model if active.
 	if m.importModel != nil {
+		if _, ok := msg.(tea.KeyMsg); ok && m.importModel.Done() {
+			added, skipped, failed := m.importModel.Stats()
+			m.state = iwDone
+			m.resultMsg = fmt.Sprintf("%d added, %d skipped, %d failed", added, skipped, failed)
+			if failed > 0 {
+				m.resultMsg += fmt.Sprintf("\n  %d URL(s) failed", failed)
+			}
+			return m, nil
+		}
 		model, cmd := m.importModel.Update(msg)
 		im := model.(ImportModel)
 		m.importModel = &im
@@ -272,11 +279,14 @@ func (m ImportWizardModel) startPlaylistImport(path string) tea.Cmd {
 
 func (m ImportWizardModel) startBackupRestore(path string) tea.Cmd {
 	dataDir := m.dataDir
+	callerDB := m.db
 	return func() tea.Msg {
 		dbPath := filepath.Join(dataDir, "data.db")
-		if _, err := os.Stat(dbPath); err == nil {
-			return backupRestoreMsg{err: fmt.Errorf("database already exists at %s — remove it first", dbPath)}
+		// Close the DB that PersistentPreRunE opened so we can replace it.
+		if callerDB != nil {
+			callerDB.Close()
 		}
+		os.Remove(dbPath)
 
 		raw, err := os.ReadFile(path)
 		if err != nil {

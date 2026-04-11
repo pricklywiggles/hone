@@ -141,7 +141,7 @@ Key patterns:
 - **Shared helpers**: `wizardItem` (implements `list.Item`) and `newWizardList` create consistent selection lists across both wizards, styled with `colorAccent`.
 - **Back navigation**: Pressing Escape moves to the previous step. The export wizard's `handleBack()` centralizes this logic.
 - **Delegation**: Once the user finishes choosing options, the wizard delegates to existing models. The import wizard embeds `ImportModel` for playlist imports and `AddModel` for single-URL adds. The export wizard runs backup/playlist export functions directly.
-- **Inline mode**: Both wizards run via `tui.RunInline` so output remains visible in the terminal after exit, matching the existing import progress pattern.
+- **Altscreen mode**: Both wizards run via `tui.Run` (altscreen) since they use full-screen `bubbles/list` and `bubbles/filepicker` components.
 
 ---
 

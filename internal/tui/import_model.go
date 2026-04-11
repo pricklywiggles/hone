@@ -303,6 +303,12 @@ func (m ImportModel) processItem(index int) tea.Cmd {
 	}
 }
 
+func (m ImportModel) Done() bool { return m.allDone() }
+
+func (m ImportModel) Stats() (added, skipped, failed int) {
+	return m.added, m.skipped, m.failed
+}
+
 func (m ImportModel) FailedURLs() []string {
 	var urls []string
 	for _, it := range m.items {
