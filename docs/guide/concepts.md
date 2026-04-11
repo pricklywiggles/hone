@@ -78,11 +78,11 @@ The TUI makes the distinction clear: "you have 5 problems due" vs "nothing due t
 
 ### Free practice
 
-When all due problems have been completed, hone enters **free practice** mode and continues serving upcoming problems so you can keep practicing. However, solving a not-yet-due problem in the same session doesn't advance its SRS state — the attempt is recorded for stats, but the interval, EF, and next review date remain unchanged.
+When all due problems have been completed, hone shows a congratulations screen and enters **free practice** mode. You can keep practicing upcoming problems, but SRS is frozen for successful solves — the attempt is recorded for stats, but the interval, EF, and next review date stay unchanged.
 
 The reasoning: spaced repetition works because of the spacing. Solving a problem three times in one sitting proves you can hold it in working memory, not that you've built durable recall. Inflating intervals from same-day re-solves would undermine the scheduling.
 
-**Failures are the exception.** If you fail an upcoming problem, hone resets its SRS state normally (interval back to 1, repetition count to 0) because a failure is genuine evidence of forgetting regardless of when the problem was scheduled.
+**Failures still reset SRS.** If you fail an upcoming problem, hone resets its SRS state normally (interval back to 1, repetition count to 0) because a failure is genuine evidence of forgetting regardless of when the problem was scheduled.
 
 ---
 

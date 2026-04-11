@@ -69,14 +69,18 @@ hone import my-list.txt
 hone practice
 ```
 
-hone picks the most-overdue problem, opens it in a visible Chrome window, and starts a timer. Solve the problem and submit it. hone detects the submission result automatically and records the attempt.
+hone shows a **start screen** with your active playlist (if any), how many problems are due today, and the total queue size. Press Enter to begin.
+
+The first due problem opens in a visible Chrome window and hone starts a timer. Solve the problem and submit it — hone detects the submission result automatically and records the attempt.
 
 When you're done, the TUI shows:
 
 - Your result (pass/fail)
-- Solve time
-- Quality score derived from your speed
+- Solve time and quality score
 - The next scheduled review date
+- **Today's stats** — solved, failed, and remaining counts for your playlist and overall
+
+When all due problems are complete, hone shows a congratulations screen. You can continue with upcoming problems in **free practice** mode (SRS is frozen for successful solves) or quit and come back tomorrow.
 
 ---
 

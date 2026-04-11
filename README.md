@@ -39,7 +39,7 @@ cd hone && go install .
 # Add a problem
 hone add https://neetcode.io/problems/two-sum/question
 
-# Start practicing — picks the most overdue problem and opens it in Chrome
+# Start practicing — shows queue summary, then opens problems in Chrome
 hone practice
 
 # Open the stats dashboard
@@ -86,7 +86,7 @@ Press `p` from any tab to start a practice session on the current filter. Use `�
 | Command | Description |
 |---------|-------------|
 | `hone` | Stats dashboard |
-| `hone practice` | Pick and launch the next due problem |
+| `hone practice` | Start a practice session with start screen and queue summary |
 | `hone add <url>` | Add a problem by URL |
 | `hone add -f file.txt` | Batch add from a URL list |
 | `hone import file.txt` | Playlist-aware bulk import |
