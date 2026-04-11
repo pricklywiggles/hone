@@ -25,7 +25,8 @@ import (
 type practiceState int
 
 const (
-	practiceWaiting practiceState = iota
+	practiceStart practiceState = iota
+	practiceWaiting
 	practiceDone
 	practiceError
 	practiceAllCaughtUp
@@ -37,11 +38,12 @@ type practiceTickMsg struct{}
 type practiceAnimTickMsg struct{}
 type practiceResultMsg monitor.Result
 type practiceSavedMsg struct {
-	nextDate    string
-	quality     int
+	nextDate      string
+	quality       int
 	newlyMastered bool
-	todayStats  store.TodayStats
-	frozen      bool
+	filterStats   store.TodayStats
+	overallStats  store.TodayStats
+	frozen        bool
 }
 type practiceNextMsg struct {
 	problem  *store.Problem
@@ -69,7 +71,8 @@ type PracticeModel struct {
 	nextDate   string
 	quality       int
 	newlyMastered bool
-	todayStats    store.TodayStats
+	filterStats   store.TodayStats
+	overallStats  store.TodayStats
 	cancelFn      context.CancelFunc
 	ctx        context.Context
 	session    *monitor.Session
@@ -77,7 +80,9 @@ type PracticeModel struct {
 	db         *sqlx.DB
 	profileDir string
 	filter     store.PracticeFilter
+	filterName string
 	queue      []store.QueueEntry
+	dueCount   int
 	help         help.Model
 	width        int
 	height       int
@@ -94,26 +99,32 @@ func NewPracticeModel(
 	profileDir string,
 	queue []store.QueueEntry,
 	filter store.PracticeFilter,
+	filterName string,
 ) PracticeModel {
-	first := queue[0]
+	dueCount := 0
+	for _, e := range queue {
+		if e.IsDue {
+			dueCount++
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return PracticeModel{
-		db:         db,
-		profileDir: profileDir,
-		problem:    &first.Problem,
-		srsState:   &first.SRS,
-		isDue:      first.IsDue,
-		queue:      queue[1:],
-		startedAt:  time.Now(),
-		ctx:        ctx,
-		cancelFn:   cancel,
-		filter:     filter,
-		help:       newHelpModel(),
+		state:        practiceStart,
+		db:           db,
+		profileDir:   profileDir,
+		queue:        queue,
+		dueCount:     dueCount,
+		freePractice: dueCount == 0,
+		ctx:          ctx,
+		cancelFn:     cancel,
+		filter:       filter,
+		filterName:   filterName,
+		help:         newHelpModel(),
 	}
 }
 
 func (m PracticeModel) Init() tea.Cmd {
-	return tea.Batch(tea.WindowSize(), tickCmd(), m.startSession())
+	return tea.Batch(tea.WindowSize(), animTickCmd())
 }
 
 func (m PracticeModel) startSession() tea.Cmd {
@@ -139,6 +150,10 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		case "q", "esc":
+			if m.state == practiceStart {
+				m.cancelFn()
+				return m, Pop()
+			}
 			if m.state == practiceAllCaughtUp {
 				m.cancelFn()
 				if m.session != nil {
@@ -152,6 +167,16 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, Pop()
 		case "n", "enter":
+			if m.state == practiceStart {
+				entry := m.queue[0]
+				m.queue = m.queue[1:]
+				m.problem = &entry.Problem
+				m.srsState = &entry.SRS
+				m.isDue = entry.IsDue
+				m.startedAt = time.Now()
+				m.state = practiceWaiting
+				return m, tea.Batch(tickCmd(), m.startSession())
+			}
 			if m.state == practiceAllCaughtUp {
 				entry := m.pendingEntry
 				m.pendingEntry = nil
@@ -218,7 +243,7 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case practiceAnimTickMsg:
-		if m.state == practiceAllCaughtUp {
+		if m.state == practiceStart || m.state == practiceAllCaughtUp {
 			m.animFrame++
 			return m, animTickCmd()
 		}
@@ -249,7 +274,8 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.quality = msg.quality
 		m.newlyMastered = msg.newlyMastered
 		m.frozen = msg.frozen
-		m.todayStats = msg.todayStats
+		m.filterStats = msg.filterStats
+		m.overallStats = msg.overallStats
 
 	case practiceNextMsg:
 		ctx, cancel := context.WithCancel(context.Background())
@@ -265,7 +291,8 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.quality = 0
 		m.newlyMastered = false
 		m.frozen = false
-		m.todayStats = store.TodayStats{}
+		m.filterStats = store.TodayStats{}
+		m.overallStats = store.TodayStats{}
 		m.debugScroll = 0
 		m.state = practiceWaiting
 		m.ctx = ctx
@@ -312,25 +339,29 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 		// Failures still reset SRS since they're real evidence of forgetting.
 		frozen := !m.isDue && r.Success
 		if frozen {
-			today, _ := store.GetTodayStats(m.db)
+			fStats, _ := store.GetTodayStatsFiltered(m.db, m.filter)
+			oStats, _ := store.GetTodayStats(m.db)
 			return practiceSavedMsg{
-				nextDate:   m.srsState.NextReviewDate,
-				quality:    quality,
-				frozen:     true,
-				todayStats: today,
+				nextDate:     m.srsState.NextReviewDate,
+				quality:      quality,
+				frozen:       true,
+				filterStats:  fStats,
+				overallStats: oStats,
 			}
 		}
 
 		wasMastered := m.srsState.MasteredBefore == 1
-		newState := srs.UpdateSRS(*m.srsState, r.Success, durationMin, thresholds, time.Now())
+		newState := srs.UpdateSRS(*m.srsState, r.Success, durationMin, thresholds, time.Now().UTC())
 		_ = store.SaveSRSState(m.db, newState)
 
-		today, _ := store.GetTodayStats(m.db)
+		fStats, _ := store.GetTodayStatsFiltered(m.db, m.filter)
+		oStats, _ := store.GetTodayStats(m.db)
 		return practiceSavedMsg{
 			nextDate:      newState.NextReviewDate,
 			quality:       quality,
 			newlyMastered: !wasMastered && newState.MasteredBefore == 1,
-			todayStats:    today,
+			filterStats:   fStats,
+			overallStats:  oStats,
 		}
 	}
 }
@@ -498,6 +529,8 @@ func (m PracticeModel) renderDebugPanel() string {
 
 func (m PracticeModel) View() string {
 	switch m.state {
+	case practiceStart:
+		return m.viewStart()
 	case practiceDone:
 		return m.viewDone()
 	case practiceError:
@@ -507,6 +540,77 @@ func (m PracticeModel) View() string {
 	default:
 		return m.viewWaiting()
 	}
+}
+
+func (m PracticeModel) viewStart() string {
+	n := len(gradientColors)
+	borderColor := gradientColors[m.animFrame%n]
+
+	starColors := make([]lipgloss.Color, 5)
+	for i := range starColors {
+		starColors[i] = gradientColors[(m.animFrame+i)%n]
+	}
+	var stars strings.Builder
+	for _, c := range starColors {
+		stars.WriteString(lipgloss.NewStyle().Foreground(c).Render("★ "))
+	}
+	starLine := stars.String()
+
+	bright := lipgloss.NewStyle().Foreground(colorBright)
+	innerW := prCardWidth - 2 - 6
+	wrap := lipgloss.NewStyle().Width(innerW).Align(lipgloss.Center)
+
+	scope := "Your library"
+	if m.filterName != "" {
+		scope = m.filterName
+	}
+	scopeLine := bright.Render(scope)
+
+	var title, dueLine, queueLine string
+	var extraLines []string
+
+	if m.dueCount > 0 {
+		title = lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render("Ready to Practice")
+		dueLine = lipgloss.NewStyle().Foreground(colorWarning).Render(
+			fmt.Sprintf("%d problems due today", m.dueCount))
+		queueLine = prDimStyle.Render(fmt.Sprintf("%d total in queue", len(m.queue)))
+	} else {
+		title = lipgloss.NewStyle().Bold(true).Foreground(colorMastered).Render("All Caught Up!")
+		dueLine = prDimStyle.Render("0 problems due today")
+		queueLine = prDimStyle.Render(fmt.Sprintf("%d upcoming in queue", len(m.queue)))
+		extraLines = append(extraLines,
+			"",
+			wrap.Render(prDimStyle.Render("SRS paused for successful solves. Failures will still reset progress.")),
+		)
+	}
+
+	prompt := bright.Render("Press enter to start, q to quit")
+
+	lines := []string{
+		starLine,
+		"",
+		title,
+		"",
+		scopeLine,
+		dueLine,
+		queueLine,
+	}
+	lines = append(lines, extraLines...)
+	lines = append(lines,
+		"",
+		prompt,
+		"",
+		starLine,
+	)
+
+	content := lipgloss.JoinVertical(lipgloss.Center, lines...)
+	card := prCardBase.BorderForeground(borderColor).Render(content)
+
+	if m.width == 0 {
+		return "\n" + card
+	}
+	availH := m.height - 2
+	return lipgloss.Place(m.width, availH, lipgloss.Center, lipgloss.Center, card)
 }
 
 func (m PracticeModel) viewAllCaughtUp() string {
@@ -525,21 +629,38 @@ func (m PracticeModel) viewAllCaughtUp() string {
 	starLine := stars.String()
 
 	title := lipgloss.NewStyle().Bold(true).Foreground(colorMastered).Render("All caught up!")
+
+	scope := "your library"
+	if m.filterName != "" {
+		scope = m.filterName
+	}
+	bright := lipgloss.NewStyle().Foreground(colorBright)
+	innerW := prCardWidth - 2 - 6
+	wrap := lipgloss.NewStyle().Width(innerW).Align(lipgloss.Center)
+
+	fs := m.filterStats
+	statsLine := bright.Render(fmt.Sprintf("%d solved", fs.Succeeded)) +
+		prDimStyle.Render(" / ") +
+		bright.Render(fmt.Sprintf("%d failed", fs.Attempted-fs.Succeeded))
 	remaining := len(m.queue) + 1
-	body := prDimStyle.Render(fmt.Sprintf(
-		"You've finished all %d problems due today.\n\n"+
-			"You can continue to practice %d upcoming\n"+
-			"problems — success won't change their due\n"+
-			"date, but failures will.",
-		m.todayStats.Attempted, remaining))
-	prompt := lipgloss.NewStyle().Foreground(colorBright).Render("Press enter to continue, q to quit")
+	doneLine := wrap.Render(prDimStyle.Render(fmt.Sprintf(
+		"You've finished all due problems in %s!", scope)))
+	continueLine := wrap.Render(prDimStyle.Render(fmt.Sprintf(
+		"You can continue with %d upcoming problems "+
+			"(success won't change due dates, failures "+
+			"will) or switch to another playlist.",
+		remaining)))
+	prompt := bright.Render("Press enter to continue, q to quit")
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
 		starLine,
 		"",
 		title,
 		"",
-		body,
+		doneLine,
+		statsLine,
+		"",
+		continueLine,
 		"",
 		prompt,
 		"",
@@ -612,8 +733,41 @@ func (m PracticeModel) viewDone() string {
 		nextLine += prDimStyle.Render("  (SRS unchanged)")
 	}
 	qualityLine := prDimStyle.Render("quality  ") + lipgloss.NewStyle().Foreground(colorBright).Render(fmt.Sprintf("%d/5", m.quality))
-	todayLine := prDimStyle.Render("today  ") + lipgloss.NewStyle().Foreground(colorBright).Render(
-		fmt.Sprintf("%d/%d solved", m.todayStats.Succeeded, m.todayStats.Attempted))
+
+	bright := lipgloss.NewStyle().Foreground(colorBright)
+	statsHeader := ""
+	filterLine := ""
+	todayLine := ""
+
+	filterLabel := "session"
+	if m.filterName != "" {
+		filterLabel = m.filterName
+	}
+	fs := m.filterStats
+	fRemaining := fs.DueToday - fs.Attempted
+	if fRemaining < 0 {
+		fRemaining = 0
+	}
+	os := m.overallStats
+	oRemaining := os.DueToday - os.Attempted
+	if oRemaining < 0 {
+		oRemaining = 0
+	}
+
+	statsHeader = lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render("Today's Stats")
+	filterLine = prDimStyle.Render(filterLabel) + "\n" +
+		bright.Render(fmt.Sprintf("%d solved", fs.Succeeded)) +
+		prDimStyle.Render(" / ") +
+		bright.Render(fmt.Sprintf("%d failed", fs.Attempted-fs.Succeeded)) +
+		prDimStyle.Render(" / ") +
+		bright.Render(fmt.Sprintf("%d remaining", fRemaining))
+	todayLine = prDimStyle.Render("All problems") + "\n" +
+		bright.Render(fmt.Sprintf("%d solved", os.Succeeded)) +
+		prDimStyle.Render(" / ") +
+		bright.Render(fmt.Sprintf("%d failed", os.Attempted-os.Succeeded)) +
+		prDimStyle.Render(" / ") +
+		bright.Render(fmt.Sprintf("%d remaining", oRemaining))
+
 	masteredLine := ""
 	if m.newlyMastered {
 		masteredLine = lipgloss.NewStyle().Bold(true).Foreground(colorMastered).Render("★ Mastered!")
@@ -621,6 +775,8 @@ func (m PracticeModel) viewDone() string {
 	if m.nextDate == "" {
 		nextLine = prDimStyle.Render("saving…")
 		qualityLine = ""
+		statsHeader = ""
+		filterLine = ""
 		todayLine = ""
 		masteredLine = ""
 	}
@@ -629,7 +785,7 @@ func (m PracticeModel) viewDone() string {
 		verdict,
 		"",
 		prTitleStyle.Render(m.problem.Title),
-		prDimStyle.Render("time  ") + lipgloss.NewStyle().Foreground(colorBright).Render(formatDuration(elapsed)),
+		prDimStyle.Render("time  ") + bright.Render(formatDuration(elapsed)),
 	}
 	if qualityLine != "" {
 		lines = append(lines, qualityLine)
@@ -637,6 +793,12 @@ func (m PracticeModel) viewDone() string {
 	lines = append(lines, nextLine)
 	if masteredLine != "" {
 		lines = append(lines, "", masteredLine)
+	}
+	if statsHeader != "" {
+		lines = append(lines, "", statsHeader, "")
+	}
+	if filterLine != "" {
+		lines = append(lines, filterLine)
 	}
 	if todayLine != "" {
 		lines = append(lines, "", todayLine)

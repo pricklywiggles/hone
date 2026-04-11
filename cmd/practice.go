@@ -31,7 +31,8 @@ var practiceCmd = &cobra.Command{
 			return nil
 		}
 
-		m := tui.NewPracticeModel(appDB, config.BrowserProfileDir(), queue, filter)
+		filterName := store.ResolveFilterName(appDB, filter)
+		m := tui.NewPracticeModel(appDB, config.BrowserProfileDir(), queue, filter, filterName)
 		router := tui.NewRouter(m)
 		_, err = tui.Run(router)
 		return err

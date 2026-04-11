@@ -103,6 +103,16 @@ func (pickerKeyMap) FullHelp() [][]key.Binding { return nil }
 
 // ── Practice ─────────────────────────────────────────────────────────────────
 
+type practiceStartKeyMap struct{}
+
+func (practiceStartKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "start")),
+		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+	}
+}
+func (practiceStartKeyMap) FullHelp() [][]key.Binding { return nil }
+
 type practiceWaitingKeyMap struct{}
 
 func (practiceWaitingKeyMap) ShortHelp() []key.Binding {

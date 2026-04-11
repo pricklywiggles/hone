@@ -75,13 +75,13 @@ func GetPlaylistStats(db *sqlx.DB, playlistID int) (PlaylistStats, error) {
 			COUNT(DISTINCT pp.problem_id) AS total,
 			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pp.problem_id END) AS attempted,
 			COALESCE(SUM(CASE WHEN ps.mastered_before = 1 THEN 1 ELSE 0 END), 0) AS mastered,
-			COUNT(DISTINCT CASE WHEN ps.next_review_date <= date('now') THEN pp.problem_id END) AS due_today
+			COUNT(DISTINCT CASE WHEN ps.next_review_date <= ? THEN pp.problem_id END) AS due_today
 		FROM playlists pl
 		JOIN playlist_problems pp ON pp.playlist_id = pl.id
 		LEFT JOIN problem_srs ps ON ps.problem_id = pp.problem_id
 		LEFT JOIN (SELECT DISTINCT problem_id FROM attempts) a ON a.problem_id = pp.problem_id
 		WHERE pl.id = ?
-	`, playlistID).StructScan(&s)
+	`, localToday(), playlistID).StructScan(&s)
 	return s, err
 }
 
@@ -94,18 +94,19 @@ func GetTopicStatsById(db *sqlx.DB, topicID int) (PlaylistStats, error) {
 			COUNT(DISTINCT pt.problem_id) AS total,
 			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pt.problem_id END) AS attempted,
 			COALESCE(SUM(CASE WHEN ps.mastered_before = 1 THEN 1 ELSE 0 END), 0) AS mastered,
-			COUNT(DISTINCT CASE WHEN ps.next_review_date <= date('now') THEN pt.problem_id END) AS due_today
+			COUNT(DISTINCT CASE WHEN ps.next_review_date <= ? THEN pt.problem_id END) AS due_today
 		FROM topics t
 		JOIN problem_topics pt ON pt.topic_id = t.id
 		LEFT JOIN problem_srs ps ON ps.problem_id = pt.problem_id
 		LEFT JOIN (SELECT DISTINCT problem_id FROM attempts) a ON a.problem_id = pt.problem_id
 		WHERE t.id = ?
-	`, topicID).StructScan(&s)
+	`, localToday(), topicID).StructScan(&s)
 	return s, err
 }
 
 // GetOverviewStats returns aggregate counts across all problems.
 func GetOverviewStats(db *sqlx.DB) (OverviewStats, error) {
+	today := localToday()
 	var s OverviewStats
 	err := db.QueryRowx(`
 		SELECT
@@ -114,8 +115,8 @@ func GetOverviewStats(db *sqlx.DB) (OverviewStats, error) {
 			(SELECT COUNT(DISTINCT problem_id) FROM attempts) AS attempted_once,
 			(SELECT COUNT(*) FROM problems
 			 WHERE id NOT IN (SELECT DISTINCT problem_id FROM attempts)) AS untouched,
-			(SELECT COUNT(*) FROM problem_srs WHERE next_review_date <= date('now')) AS due_today
-	`).StructScan(&s)
+			(SELECT COUNT(*) FROM problem_srs WHERE next_review_date <= ?) AS due_today
+	`, today).StructScan(&s)
 	return s, err
 }
 
@@ -123,7 +124,7 @@ func GetOverviewStats(db *sqlx.DB) (OverviewStats, error) {
 // on which at least one attempt was made.
 func GetStreak(db *sqlx.DB) (int, error) {
 	rows, err := db.Queryx(`
-		SELECT DISTINCT date(started_at) AS day
+		SELECT DISTINCT date(started_at, 'localtime') AS day
 		FROM attempts
 		ORDER BY day DESC
 		LIMIT 365
@@ -146,8 +147,8 @@ func GetStreak(db *sqlx.DB) (int, error) {
 		return 0, nil
 	}
 
-	today := time.Now().UTC().Format("2006-01-02")
-	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	today := localToday()
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 
 	// Streak must start from today or yesterday.
 	if days[0] != today && days[0] != yesterday {
@@ -188,6 +189,7 @@ func GetDiffStats(db *sqlx.DB) ([]DiffStat, error) {
 // GetTopicStats returns mastery/attempt counts grouped by topic, ordered by
 // success rate ascending (weakest topics first). Topics with no attempts appear last.
 func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
+	today := localToday()
 	var stats []TopicStat
 	err := db.Select(&stats, `
 		SELECT
@@ -196,7 +198,7 @@ func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 			COUNT(DISTINCT pt.problem_id) AS total,
 			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pt.problem_id END) AS attempted,
 			COALESCE(SUM(DISTINCT CASE WHEN ps.mastered_before THEN pt.problem_id END), 0) AS mastered,
-			COUNT(DISTINCT CASE WHEN ps.next_review_date <= date('now') THEN pt.problem_id END) AS due_today,
+			COUNT(DISTINCT CASE WHEN ps.next_review_date <= ? THEN pt.problem_id END) AS due_today,
 			COALESCE(
 				CAST(SUM(CASE WHEN a.result = 'success' THEN 1.0 ELSE 0.0 END) AS REAL)
 				/ NULLIF(COUNT(a.id), 0),
@@ -208,7 +210,7 @@ func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 		LEFT JOIN attempts a ON a.problem_id = pt.problem_id
 		GROUP BY t.id, t.name
 		ORDER BY CASE WHEN success_rate < 0 THEN 1 ELSE 0 END, success_rate ASC
-	`)
+	`, today)
 	return stats, err
 }
 
@@ -229,24 +231,68 @@ func GetRecentAttempts(db *sqlx.DB, n int) ([]RecentAttempt, error) {
 type TodayStats struct {
 	Attempted int `db:"attempted"`
 	Succeeded int `db:"succeeded"`
+	DueToday  int `db:"due_today"`
 }
 
-// GetTodayStats returns how many problems were attempted and solved today.
+// GetTodayStats returns how many problems were attempted and solved today (local time),
+// plus how many problems are due today across the entire library.
 func GetTodayStats(db *sqlx.DB) (TodayStats, error) {
+	today := localToday()
 	var s TodayStats
 	err := db.Get(&s, `
 		SELECT
-			COUNT(*) AS attempted,
-			COALESCE(SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END), 0) AS succeeded
-		FROM attempts
-		WHERE date(started_at) = date('now')
-	`)
+			(SELECT COUNT(*) FROM attempts WHERE date(started_at, 'localtime') = ?) AS attempted,
+			(SELECT COALESCE(SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END), 0)
+			 FROM attempts WHERE date(started_at, 'localtime') = ?) AS succeeded,
+			(SELECT COUNT(*) FROM problem_srs WHERE next_review_date <= ?) AS due_today
+	`, today, today, today)
+	return s, err
+}
+
+// GetTodayStatsFiltered returns today's attempt stats filtered by playlist or topic,
+// plus how many problems are due today within that filter scope.
+func GetTodayStatsFiltered(db *sqlx.DB, filter PracticeFilter) (TodayStats, error) {
+	today := localToday()
+
+	var attemptJoin, dueJoin string
+	var attemptArgs, dueArgs []any
+
+	if filter.PlaylistID != nil {
+		attemptJoin = ` JOIN playlist_problems pp ON pp.problem_id = a.problem_id AND pp.playlist_id = ?`
+		attemptArgs = append(attemptArgs, *filter.PlaylistID)
+		dueJoin = ` JOIN playlist_problems pp ON pp.problem_id = ps.problem_id AND pp.playlist_id = ?`
+		dueArgs = append(dueArgs, *filter.PlaylistID)
+	}
+	if filter.TopicID != nil {
+		attemptJoin += ` JOIN problem_topics pt ON pt.problem_id = a.problem_id AND pt.topic_id = ?`
+		attemptArgs = append(attemptArgs, *filter.TopicID)
+		dueJoin += ` JOIN problem_topics pt ON pt.problem_id = ps.problem_id AND pt.topic_id = ?`
+		dueArgs = append(dueArgs, *filter.TopicID)
+	}
+
+	attemptArgs = append(attemptArgs, today)
+	dueArgs = append(dueArgs, today)
+	allArgs := append(attemptArgs, attemptArgs...)
+	allArgs = append(allArgs, dueArgs...)
+
+	var s TodayStats
+	err := db.Get(&s, `
+		SELECT
+			(SELECT COUNT(*) FROM attempts a`+attemptJoin+`
+			 WHERE date(a.started_at, 'localtime') = ?) AS attempted,
+			(SELECT COALESCE(SUM(CASE WHEN a.result = 'success' THEN 1 ELSE 0 END), 0)
+			 FROM attempts a`+attemptJoin+`
+			 WHERE date(a.started_at, 'localtime') = ?) AS succeeded,
+			(SELECT COUNT(*) FROM problem_srs ps`+dueJoin+`
+			 WHERE ps.next_review_date <= ?) AS due_today
+	`, allArgs...)
 	return s, err
 }
 
 // GetAllProblems returns all problems with SRS state and attempt counts,
 // ordered by next review date then title.
 func GetAllProblems(db *sqlx.DB) ([]ProblemRow, error) {
+	today := localToday()
 	var rows []ProblemRow
 	err := db.Select(&rows, `
 		SELECT
@@ -254,13 +300,13 @@ func GetAllProblems(db *sqlx.DB) ([]ProblemRow, error) {
 			COALESCE(ps.mastered_before, 0) AS mastered,
 			COALESCE(SUM(CASE WHEN a.result = 'success' THEN 1 ELSE 0 END), 0) AS successes,
 			COALESCE(COUNT(a.id), 0) AS attempt_count,
-			COALESCE(ps.next_review_date, date('now')) AS next_review_date,
-			CASE WHEN COALESCE(ps.next_review_date, date('now')) < date('now') THEN 1 ELSE 0 END AS is_overdue
+			COALESCE(ps.next_review_date, ?) AS next_review_date,
+			CASE WHEN COALESCE(ps.next_review_date, ?) < ? THEN 1 ELSE 0 END AS is_overdue
 		FROM problems p
 		LEFT JOIN problem_srs ps ON ps.problem_id = p.id
 		LEFT JOIN attempts a ON a.problem_id = p.id
 		GROUP BY p.id
 		ORDER BY ps.next_review_date ASC, p.title ASC
-	`)
+	`, today, today, today)
 	return rows, err
 }

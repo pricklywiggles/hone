@@ -11,6 +11,10 @@ import (
 
 const datetimeFormat = "2006-01-02 15:04:05"
 
+func localToday() string {
+	return time.Now().Format("2006-01-02")
+}
+
 // Problem mirrors the problems table.
 type Problem struct {
 	ID         int    `db:"id"`
@@ -77,6 +81,7 @@ type PracticeFilter struct {
 func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bool, error) {
 	filterJoin, filterArgs := filterClauses(filter)
 	orderBy := pickOrderBy(filter)
+	today := localToday()
 
 	// Try due problems first (most overdue first).
 	dueQuery := `
@@ -84,12 +89,13 @@ func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bo
 		FROM problems p
 		JOIN problem_srs ps ON ps.problem_id = p.id` +
 		filterJoin + `
-		WHERE ps.next_review_date <= date('now')
+		WHERE ps.next_review_date <= ?
 		ORDER BY ` + orderBy + `
 		LIMIT 1`
 
+	dueArgs := append(filterArgs, today)
 	var row pickRow
-	err := db.Get(&row, dueQuery, filterArgs...)
+	err := db.Get(&row, dueQuery, dueArgs...)
 	if err == nil {
 		return row.problem(), row.srsState(), true, nil
 	}
@@ -103,11 +109,12 @@ func PickNext(db *sqlx.DB, filter PracticeFilter) (*Problem, *srs.ProblemSRS, bo
 		FROM problems p
 		JOIN problem_srs ps ON ps.problem_id = p.id` +
 		filterJoin + `
-		WHERE ps.next_review_date > date('now')
+		WHERE ps.next_review_date > ?
 		ORDER BY ` + orderBy + `
 		LIMIT 1`
 
-	err = db.Get(&row, upcomingQuery, filterArgs...)
+	upcomingArgs := append(filterArgs, today)
+	err = db.Get(&row, upcomingQuery, upcomingArgs...)
 	if err == nil {
 		return row.problem(), row.srsState(), false, nil
 	}
@@ -129,6 +136,7 @@ type QueueEntry struct {
 func ListPickQueue(db *sqlx.DB, filter PracticeFilter) ([]QueueEntry, error) {
 	filterJoin, filterArgs := filterClauses(filter)
 	orderBy := pickOrderBy(filter)
+	today := localToday()
 
 	buildQuery := func(dueCond string) string {
 		return `
@@ -145,11 +153,12 @@ func ListPickQueue(db *sqlx.DB, filter PracticeFilter) ([]QueueEntry, error) {
 		cond  string
 		isDue bool
 	}{
-		{"ps.next_review_date <= date('now')", true},
-		{"ps.next_review_date > date('now')", false},
+		{"ps.next_review_date <= ?", true},
+		{"ps.next_review_date > ?", false},
 	} {
+		args := append(filterArgs, today)
 		var rows []pickRow
-		if err := db.Select(&rows, buildQuery(stage.cond), filterArgs...); err != nil {
+		if err := db.Select(&rows, buildQuery(stage.cond), args...); err != nil {
 			return nil, err
 		}
 		for _, r := range rows {
@@ -219,6 +228,21 @@ func SaveSRSState(db *sqlx.DB, state srs.ProblemSRS) error {
 		state.ProblemID,
 	)
 	return err
+}
+
+// ResolveFilterName returns the playlist or topic name for the active filter.
+// Returns "" if no filter is set.
+func ResolveFilterName(db *sqlx.DB, f PracticeFilter) string {
+	var name string
+	if f.PlaylistID != nil {
+		_ = db.Get(&name, `SELECT name FROM playlists WHERE id = ?`, *f.PlaylistID)
+		return name
+	}
+	if f.TopicID != nil {
+		_ = db.Get(&name, `SELECT name FROM topics WHERE id = ?`, *f.TopicID)
+		return name
+	}
+	return ""
 }
 
 func filterClauses(f PracticeFilter) (string, []interface{}) {

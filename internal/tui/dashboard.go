@@ -122,7 +122,8 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if err != nil || len(queue) == 0 {
 						return nil
 					}
-					return PushMsg{Model: NewPracticeModel(db, profileDir, queue, filter)}
+					filterName := store.ResolveFilterName(db, filter)
+					return PushMsg{Model: NewPracticeModel(db, profileDir, queue, filter, filterName)}
 				}
 			}
 		case "a":
