@@ -49,17 +49,13 @@ hone opens a headless browser, scrapes the problem title, difficulty, and topics
 
 ### Batch import
 
-If you have a list of URLs:
+If you have a list of URLs, use the playlist-aware import (see [Import & Export](import-export.md)):
 
 ```sh
-hone add -f problems.txt
+hone import --playlist problems.txt
 ```
 
-Or use the playlist-aware import format (see [Import & Export](import-export.md)):
-
-```sh
-hone import my-list.txt
-```
+Or run `hone import` with no flags for a guided wizard.
 
 ---
 

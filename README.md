@@ -88,11 +88,13 @@ Press `p` from any tab to start a practice session on the current filter. Use `â
 | `hone` | Stats dashboard |
 | `hone practice` | Start a practice session with start screen and queue summary |
 | `hone add <url>` | Add a problem by URL |
-| `hone add -f file.txt` | Batch add from a URL list |
-| `hone import file.txt` | Playlist-aware bulk import |
-| `hone export` | Export as playlist format (round-trips with import) |
+| `hone import` | Guided import wizard |
+| `hone import --playlist file.txt` | Playlist-aware bulk import |
+| `hone import --backup backup.json` | Restore from a JSON backup |
+| `hone export` | Guided export wizard |
+| `hone export --playlist` | Export all playlists in text format |
+| `hone export --playlist NAME` | Export a single playlist by name |
 | `hone export --backup` | Full JSON backup (SRS state, attempts, playlists) |
-| `hone init backup.json` | Restore from a JSON backup |
 | `hone playlist create\|list\|select` | Manage playlists |
 | `hone auth neetcode\|leetcode\|geeksforgeeks` | Save a browser session for a platform |
 
@@ -109,7 +111,7 @@ https://neetcode.io/problems/valid-anagram/question
 https://neetcode.io/problems/climbing-stairs/question
 ```
 
-`# Name` headers define playlist boundaries. Problems before any header are imported without a playlist. Existing problems are skipped (not re-scraped) but still added to the playlist.
+`# Name` headers define playlist boundaries. Problems before any header are imported without a playlist. Existing problems are skipped (not re-scraped) but still added to the playlist. Use `hone import --playlist file.txt` to import, or just `hone import` for the guided wizard.
 
 ---
 
@@ -120,7 +122,7 @@ https://neetcode.io/problems/climbing-stairs/question
 hone export --backup -o hone-backup.json
 
 # On new machine
-hone init hone-backup.json
+hone import --backup hone-backup.json
 ```
 
 The JSON backup includes all problems, SRS state, attempt history, and playlists.

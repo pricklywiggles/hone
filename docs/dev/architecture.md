@@ -6,11 +6,10 @@
 hone/
 ├── cmd/                  Cobra commands (thin wiring layer)
 │   ├── root.go           PersistentPreRunE: config.Init + db.Open
-│   ├── add.go            hone add [-f file] <url>
+│   ├── add.go            hone add <url>
 │   ├── practice.go       hone practice
-│   ├── import.go         hone import <file>
-│   ├── export.go         hone export [--backup] [-o file]
-│   ├── init.go           hone init <backup-file>
+│   ├── import.go         hone import [--playlist|--backup|--url] (wizard if no flags)
+│   ├── export.go         hone export [--backup|--playlist] (wizard if no flags)
 │   └── playlist.go       hone playlist create|list|select
 │
 ├── internal/
@@ -22,8 +21,10 @@ hone/
 │   ├── scraper/          Headless scraping via external Chrome + Rod (title, difficulty, topics)
 │   ├── monitor/          Headful Rod browser monitor (submission result detection)
 │   ├── importer/         Playlist-format file parser (ParseImportFile)
-│   ├── backup/           Export + restore (ExportFullBackup, RestoreFromBackup)
+│   ├── backup/           Export + restore (ExportFullBackup, ExportSinglePlaylistFormat, RestoreFromBackup)
 │   └── tui/              All Bubble Tea models
+│       ├── import_wizard.go   Guided import wizard (list → filepicker/textinput → delegate)
+│       └── export_wizard.go   Guided export wizard (list → playlist picker → destination)
 │
 └── docs/                 This documentation
 ```

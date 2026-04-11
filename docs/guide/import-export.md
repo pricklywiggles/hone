@@ -1,12 +1,12 @@
 # Import & Export
 
-hone supports two data formats: a **playlist format** for sharing problem lists, and a **JSON backup format** for full data portability.
+hone supports two data formats: a **playlist format** for sharing problem lists, and a **JSON backup format** for full data portability. Both `hone import` and `hone export` offer a guided wizard when run without flags.
 
 ---
 
 ## Playlist format
 
-The playlist format is a plain text file that `hone import` and `hone export` both understand. It's designed to be human-readable and easy to edit.
+The playlist format is a plain text file. It's designed to be human-readable and easy to edit.
 
 ```
 # Favorites
@@ -31,7 +31,7 @@ https://neetcode.io/problems/coin-change/question
 ### Importing
 
 ```sh
-hone import my-list.txt
+hone import --playlist my-list.txt
 ```
 
 hone processes URLs sequentially. For each URL:
@@ -59,11 +59,15 @@ Progress is shown inline as each URL completes:
 ### Exporting
 
 ```sh
-hone export
-hone export -o my-list.txt
+# All playlists
+hone export --playlist
+hone export --playlist -o my-list.txt
+
+# Single playlist by name
+hone export --playlist "Week 1"
 ```
 
-The output groups problems by playlist and round-trips cleanly with `hone import`.
+The output groups problems by playlist and round-trips cleanly with `hone import --playlist`.
 
 ---
 
@@ -118,13 +122,13 @@ Example output:
 ### Restoring
 
 ```sh
-hone init backup.json
+hone import --backup backup.json
 ```
 
 !!! warning "Database must not exist"
-    `hone init` refuses to run if `~/.local/share/hone/data.db` already exists, to prevent accidental data loss. Delete the database first, then restore:
+    `hone import --backup` refuses to run if `~/.local/share/hone/data.db` already exists, to prevent accidental data loss. Delete the database first, then restore:
 
-`rm ~/.local/share/hone/data.db && hone init backup.json`
+`rm ~/.local/share/hone/data.db && hone import --backup backup.json`
 
 ---
 
@@ -140,7 +144,7 @@ hone init backup.json
 3. On the new machine:
    ```sh
    brew install pricklywiggles/hone/hone
-   hone init hone-backup.json
+   hone import --backup hone-backup.json
    ```
 
 Your entire history, SRS state, and playlists are restored. You'll need to re-authenticate with problem platforms (`hone auth neetcode`), since the browser profile is not included in the backup.

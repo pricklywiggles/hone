@@ -45,25 +45,29 @@ hone add https://leetcode.com/problems/climbing-stairs/
 
 Supported platforms: **NeetCode**, **LeetCode**, **GeeksForGeeks**.
 
-### Batch add
-
-```sh
-hone add -f problems.txt
-```
-
-The file should contain one URL per line. Lines starting with `#` or `//` are ignored. For playlist-aware import, use `hone import` instead.
-
 ---
 
 ## `hone import`
 
-Import problems from a file with optional playlist grouping.
+Import problems or restore from a backup. Without flags, launches a guided wizard that walks you through the options.
 
 ```sh
-hone import my-list.txt
+# Guided wizard
+hone import
+
+# Playlist-aware import from text file
+hone import --playlist my-list.txt
+
+# Restore from JSON backup
+hone import --backup backup.json
+
+# Add a single URL (same as hone add)
+hone import --url https://neetcode.io/problems/two-sum/question
 ```
 
-The file format uses `# Name` headers to define playlist boundaries:
+### Playlist file format
+
+The `--playlist` flag expects a text file with `# Name` headers defining playlist boundaries:
 
 ```
 # Favorites
@@ -83,44 +87,38 @@ https://neetcode.io/problems/climbing-stairs/question
 
 Progress is shown inline as each URL is processed.
 
+### Backup restore
+
+The `--backup` flag restores from a JSON backup created by `hone export --backup`.
+
+!!! warning
+    This refuses to run if a database already exists at `~/.local/share/hone/data.db`. To start fresh from a backup, run: `rm ~/.local/share/hone/data.db && hone import --backup backup.json`
+
 ---
 
 ## `hone export`
 
-Export problems to stdout or a file.
+Export problems or create backups. Without flags, launches a guided wizard.
 
 ```sh
-# Playlist format (compatible with hone import)
+# Guided wizard
 hone export
-hone export -o my-list.txt
+
+# All playlists in text format
+hone export --playlist
+hone export --playlist -o my-list.txt
+
+# Single playlist by name
+hone export --playlist "Week 1"
 
 # Full JSON backup
 hone export --backup
 hone export --backup -o backup.json
 ```
 
-The default export groups problems by playlist under `# Name` headers. Problems not in any playlist appear at the top. The output round-trips with `hone import`.
+The `--playlist` format groups problems under `# Name` headers. The output round-trips with `hone import --playlist`.
 
 The `--backup` format includes SRS state, attempt history, and playlist memberships — everything needed to fully restore your data on another machine.
-
----
-
-## `hone init`
-
-Restore from a JSON backup created by `hone export --backup`.
-
-```sh
-hone init backup.json
-```
-
-!!! warning
-    This command refuses to run if a database already exists at `~/.local/share/hone/data.db`. To start fresh from a backup, run: `rm ~/.local/share/hone/data.db && hone init backup.json`
-
-On success, prints a summary:
-
-```
-restored 47 problem(s), 3 playlist(s), 218 attempt(s)
-```
 
 ---
 

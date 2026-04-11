@@ -6,60 +6,85 @@ import (
 	"os"
 
 	"github.com/pricklywiggles/hone/internal/backup"
+	"github.com/pricklywiggles/hone/internal/tui"
 	"github.com/spf13/cobra"
 )
 
-var exportBackup bool
-var exportOutput string
+var (
+	exportBackupFlag  bool
+	exportPlaylistName string
+	exportOutputFile  string
+)
 
 func init() {
 	rootCmd.AddCommand(exportCmd)
-	exportCmd.Flags().BoolVar(&exportBackup, "backup", false, "export full JSON backup (SRS state, attempts, playlists)")
-	exportCmd.Flags().StringVarP(&exportOutput, "output", "o", "", "write to file instead of stdout")
+	exportCmd.Flags().BoolVar(&exportBackupFlag, "backup", false, "full JSON backup (SRS state, attempts, playlists)")
+	exportCmd.Flags().StringVar(&exportPlaylistName, "playlist", "", "export playlist(s) in text format; omit value for all")
+	exportCmd.Flags().Lookup("playlist").NoOptDefVal = "*"
+	exportCmd.Flags().StringVarP(&exportOutputFile, "output", "o", "", "write to file instead of stdout")
+	exportCmd.MarkFlagsMutuallyExclusive("backup", "playlist")
 }
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "Export problems to a file",
-	Long: `Export problems to a file.
+	Short: "Export problems or backups",
+	Long: `Export problems or create backups.
 
-By default, exports in playlist import format (compatible with "hone import"):
-each playlist appears as a "# Name" header followed by its problem URLs.
-Problems not in any playlist appear at the top with no header.
+Without flags, launches an interactive wizard.
 
-With --backup, exports a full JSON snapshot including SRS state, attempt
-history, and playlist memberships. Use "hone init" to restore from a backup.`,
+  hone export --backup [-o FILE]         Full JSON backup
+  hone export --playlist [-o FILE]       All playlists in text format
+  hone export --playlist NAME [-o FILE]  Single playlist by name`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var content string
-		var err error
-
-		if exportBackup {
-			data, err := backup.ExportFullBackup(appDB)
-			if err != nil {
-				return fmt.Errorf("export: %w", err)
-			}
-			b, err := json.MarshalIndent(data, "", "  ")
-			if err != nil {
-				return err
-			}
-			content = string(b) + "\n"
-		} else {
-			content, err = backup.ExportPlaylistFormat(appDB)
-			if err != nil {
-				return fmt.Errorf("export: %w", err)
-			}
+		if exportBackupFlag {
+			return runExportBackup()
 		}
-
-		if exportOutput != "" {
-			if err := os.WriteFile(exportOutput, []byte(content), 0o644); err != nil {
-				return err
-			}
-			fmt.Fprintf(os.Stderr, "wrote %s\n", exportOutput)
-			return nil
+		if cmd.Flags().Changed("playlist") {
+			return runExportPlaylist()
 		}
-
-		fmt.Print(content)
-		return nil
+		// No flags: guided wizard
+		m := tui.NewExportWizardModel(appDB)
+		_, err := tui.Run(m)
+		return err
 	},
+}
+
+func runExportBackup() error {
+	data, err := backup.ExportFullBackup(appDB)
+	if err != nil {
+		return fmt.Errorf("export: %w", err)
+	}
+	b, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeOutput(string(b) + "\n")
+}
+
+func runExportPlaylist() error {
+	var content string
+	var err error
+
+	if exportPlaylistName == "*" {
+		content, err = backup.ExportPlaylistFormat(appDB)
+	} else {
+		content, err = backup.ExportSinglePlaylistFormat(appDB, exportPlaylistName)
+	}
+	if err != nil {
+		return fmt.Errorf("export: %w", err)
+	}
+	return writeOutput(content)
+}
+
+func writeOutput(content string) error {
+	if exportOutputFile != "" {
+		if err := os.WriteFile(exportOutputFile, []byte(content), 0o644); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "wrote %s\n", exportOutputFile)
+		return nil
+	}
+	fmt.Print(content)
+	return nil
 }
