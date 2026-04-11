@@ -1,8 +1,9 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -62,36 +63,35 @@ func NewTopicsTabModel(db *sqlx.DB, height int) TopicsTabModel {
 }
 
 func (m *TopicsTabModel) applySort() {
-	sorted := make([]store.TopicStat, len(m.rows))
-	copy(sorted, m.rows)
+	sorted := slices.Clone(m.rows)
 	switch m.sort {
 	case topicSortMastered:
-		sort.SliceStable(sorted, func(i, j int) bool {
-			pi, pj := 0.0, 0.0
-			if sorted[i].Total > 0 {
-				pi = float64(sorted[i].Mastered) / float64(sorted[i].Total)
+		slices.SortStableFunc(sorted, func(a, b store.TopicStat) int {
+			pa, pb := 0.0, 0.0
+			if a.Total > 0 {
+				pa = float64(a.Mastered) / float64(a.Total)
 			}
-			if sorted[j].Total > 0 {
-				pj = float64(sorted[j].Mastered) / float64(sorted[j].Total)
+			if b.Total > 0 {
+				pb = float64(b.Mastered) / float64(b.Total)
 			}
-			return pi > pj
+			return cmp.Compare(pb, pa)
 		})
 	case topicSortAlpha:
-		sort.SliceStable(sorted, func(i, j int) bool {
-			return sorted[i].Name < sorted[j].Name
+		slices.SortStableFunc(sorted, func(a, b store.TopicStat) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
 	default: // topicSortWeakest: success rate asc, unattempted last
-		sort.SliceStable(sorted, func(i, j int) bool {
-			if sorted[i].SuccessRate < 0 && sorted[j].SuccessRate < 0 {
-				return false
+		slices.SortStableFunc(sorted, func(a, b store.TopicStat) int {
+			if a.SuccessRate < 0 && b.SuccessRate < 0 {
+				return 0
 			}
-			if sorted[i].SuccessRate < 0 {
-				return false
+			if a.SuccessRate < 0 {
+				return 1
 			}
-			if sorted[j].SuccessRate < 0 {
-				return true
+			if b.SuccessRate < 0 {
+				return -1
 			}
-			return sorted[i].SuccessRate < sorted[j].SuccessRate
+			return cmp.Compare(a.SuccessRate, b.SuccessRate)
 		})
 	}
 	m.sorted = sorted

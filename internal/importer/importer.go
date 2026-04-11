@@ -40,11 +40,11 @@ func ParseImportFile(path string) ([]ImportGroup, error) {
 		if line == "" || strings.HasPrefix(line, "//") {
 			continue
 		}
-		if strings.HasPrefix(line, "#") {
+		if name, ok := strings.CutPrefix(line, "#"); ok {
 			if len(current.URLs) > 0 {
 				groups = append(groups, current)
 			}
-			current = ImportGroup{Playlist: strings.TrimSpace(strings.TrimPrefix(line, "#"))}
+			current = ImportGroup{Playlist: strings.TrimSpace(name)}
 			continue
 		}
 		current.URLs = append(current.URLs, line)

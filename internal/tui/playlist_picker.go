@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -98,8 +99,7 @@ func (m PlaylistPickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.all = msg.problems
 		m.checked = msg.checked
-		m.selected = make([]bool, len(msg.checked))
-		copy(m.selected, msg.checked)
+		m.selected = slices.Clone(msg.checked)
 		m.rebuildVisible()
 		return m, nil
 

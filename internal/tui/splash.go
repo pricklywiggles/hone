@@ -91,14 +91,8 @@ func (m SplashModel) renderSplash() string {
 	var b strings.Builder
 
 	totalH := len(m.lines) + 3 // art + blank line + hint
-	topPad := 0
-	if m.height > totalH {
-		topPad = (m.height - totalH) / 2
-	}
-	leftPad := 0
-	if m.width > m.artW {
-		leftPad = (m.width - m.artW) / 2
-	}
+	topPad := max(0, (m.height-totalH)/2)
+	leftPad := max(0, (m.width-m.artW)/2)
 	pad := strings.Repeat(" ", leftPad)
 
 	for range topPad {
@@ -124,10 +118,7 @@ func (m SplashModel) renderSplash() string {
 	hint := lipgloss.NewStyle().Foreground(colorDim).Render("press any key")
 	// Fill remaining lines so the hint lands on the last row.
 	artBottom := topPad + len(m.lines)
-	blankLines := m.height - artBottom - 1
-	if blankLines < 1 {
-		blankLines = 1
-	}
+	blankLines := max(1, m.height-artBottom-1)
 	for range blankLines {
 		b.WriteByte('\n')
 	}

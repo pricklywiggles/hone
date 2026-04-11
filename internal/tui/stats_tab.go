@@ -188,10 +188,7 @@ func (m *StatsTabModel) clampScroll() {
 	if viewportH < 1 {
 		viewportH = 1
 	}
-	scrollMax := len(lines) - viewportH
-	if scrollMax < 0 {
-		scrollMax = 0
-	}
+	scrollMax := max(len(lines)-viewportH, 0)
 	if m.scrollOffset > scrollMax {
 		m.scrollOffset = scrollMax
 	}
@@ -215,17 +212,8 @@ func (m StatsTabModel) View() string {
 	}
 
 	lines := strings.Split(scrollContent, "\n")
-	scrollMax := len(lines) - viewportH
-	if scrollMax < 0 {
-		scrollMax = 0
-	}
-	offset := m.scrollOffset
-	if offset > scrollMax {
-		offset = scrollMax
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	scrollMax := max(len(lines)-viewportH, 0)
+	offset := max(0, min(m.scrollOffset, scrollMax))
 
 	end := offset + viewportH
 	if end > len(lines) {

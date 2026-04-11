@@ -12,26 +12,27 @@ import (
 var (
 	logger  *log.Logger
 	enabled bool
-	once    sync.Once
 )
 
+var initOnce = sync.OnceFunc(func() {
+	if os.Getenv("HONE_DEBUG") == "" {
+		return
+	}
+	enabled = true
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	path := filepath.Join(homeDir, ".local", "share", "hone", "debug.log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	logger = log.New(f, "", 0)
+})
+
 func init() {
-	once.Do(func() {
-		if os.Getenv("HONE_DEBUG") == "" {
-			return
-		}
-		enabled = true
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return
-		}
-		path := filepath.Join(homeDir, ".local", "share", "hone", "debug.log")
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return
-		}
-		logger = log.New(f, "", 0)
-	})
+	initOnce()
 }
 
 func Log(format string, args ...any) {
