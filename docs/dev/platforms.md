@@ -117,7 +117,7 @@ Set `HONE_DEBUG=1` to enable two debugging aids:
 - **Page HTML dump** — after each scrape, the full page HTML is saved to `~/.local/share/hone/debug-page.html` so you can inspect exactly what Rod saw.
 
 ```sh
-HONE_DEBUG=1 hone add https://newplatform.com/problems/example
+HONE_DEBUG=1 hone import --url https://newplatform.com/problems/example
 # then check ~/.local/share/hone/debug.log and debug-page.html
 ```
 

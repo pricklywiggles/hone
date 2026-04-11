@@ -34,19 +34,6 @@ When all due problems are completed, a congratulations screen appears. You can c
 
 ---
 
-## `hone add`
-
-Add a problem by URL. hone scrapes metadata (title, difficulty, topics) and inserts the problem with default SRS state (due today).
-
-```sh
-hone add https://neetcode.io/problems/two-sum/question
-hone add https://leetcode.com/problems/climbing-stairs/
-```
-
-Supported platforms: **NeetCode**, **LeetCode**, **GeeksForGeeks**.
-
----
-
 ## `hone import`
 
 Import problems or restore from a backup. Without flags, launches a guided wizard that walks you through the options.
@@ -55,15 +42,17 @@ Import problems or restore from a backup. Without flags, launches a guided wizar
 # Guided wizard
 hone import
 
+# Add a single problem by URL
+hone import --url https://neetcode.io/problems/two-sum/question
+
 # Playlist-aware import from text file
 hone import --playlist my-list.txt
 
 # Restore from JSON backup
 hone import --backup backup.json
-
-# Add a single URL (same as hone add)
-hone import --url https://neetcode.io/problems/two-sum/question
 ```
+
+Supported platforms: **NeetCode**, **LeetCode**, **GeeksForGeeks**.
 
 ### Playlist file format
 

@@ -6,7 +6,6 @@
 hone/
 ├── cmd/                  Cobra commands (thin wiring layer)
 │   ├── root.go           PersistentPreRunE: config.Init + db.Open
-│   ├── add.go            hone add <url>
 │   ├── practice.go       hone practice
 │   ├── import.go         hone import [--playlist|--backup|--url] (wizard if no flags)
 │   ├── export.go         hone export [--backup|--playlist] (wizard if no flags)
@@ -43,14 +42,14 @@ sequenceDiagram
     participant scraper
     participant store
 
-    User->>cmd/add: hone add <url>
-    cmd/add->>platform: ParseURL(url)
-    platform-->>cmd/add: platform, slug
-    cmd/add->>scraper: Scrape(browser, platform, slug)
-    scraper-->>cmd/add: title, difficulty, topics
-    cmd/add->>store: InsertProblem(...)
-    store-->>cmd/add: problemID
-    cmd/add->>User: ✓ Added: Two Sum (easy)
+    User->>cmd/import: hone import --url <url>
+    cmd/import->>platform: ParseURL(url)
+    platform-->>cmd/import: platform, slug
+    cmd/import->>scraper: Scrape(browser, platform, slug)
+    scraper-->>cmd/import: title, difficulty, topics
+    cmd/import->>store: InsertProblem(...)
+    store-->>cmd/import: problemID
+    cmd/import->>User: ✓ Added: Two Sum (easy)
 ```
 
 ### Practice session

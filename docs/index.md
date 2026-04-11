@@ -18,7 +18,7 @@ hone is a macOS CLI that tracks your LeetCode, NeetCode, and GeeksForGeeks sessi
 ```
 hone                             # open the dashboard
 hone practice                    # pick and launch the next due problem
-hone add <url>                   # add a single problem by URL
+hone import --url <url>          # add a single problem by URL
 hone import --playlist file.txt  # bulk import with playlist grouping
 hone import                      # guided import wizard
 ```
@@ -48,7 +48,7 @@ go install .
 Then add your first problem and start practicing:
 
 ```sh
-hone add https://neetcode.io/problems/two-sum/question
+hone import --url https://neetcode.io/problems/two-sum/question
 hone practice
 ```
 

@@ -37,7 +37,7 @@ cd hone && go install .
 
 ```sh
 # Add a problem
-hone add https://neetcode.io/problems/two-sum/question
+hone import --url https://neetcode.io/problems/two-sum/question
 
 # Start practicing â€” shows queue summary, then opens problems in Chrome
 hone practice
@@ -87,7 +87,7 @@ Press `p` from any tab to start a practice session on the current filter. Use `â
 |---------|-------------|
 | `hone` | Stats dashboard |
 | `hone practice` | Start a practice session with start screen and queue summary |
-| `hone add <url>` | Add a problem by URL |
+| `hone import --url URL` | Add a single problem by URL |
 | `hone import` | Guided import wizard |
 | `hone import --playlist file.txt` | Playlist-aware bulk import |
 | `hone import --backup backup.json` | Restore from a JSON backup |

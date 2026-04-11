@@ -51,7 +51,7 @@ You are building a Go CLI application called hone for macOS that helps users pra
 
 ## Default Behavior
 
-Running the CLI with no arguments opens the **statistics dashboard** as the landing page. This is the home screen of the application. From this TUI, the user can navigate to all other functionality: starting a practice session, adding problems, managing playlists, and filtering by topic. Subcommands (e.g. `hone add`, `hone practice`) provide direct access to specific features for users who prefer it.
+Running the CLI with no arguments opens the **statistics dashboard** as the landing page. This is the home screen of the application. From this TUI, the user can navigate to all other functionality: starting a practice session, adding problems, managing playlists, and filtering by topic. Subcommands (e.g. `hone import`, `hone practice`) provide direct access to specific features for users who prefer it.
 
 ## Data Model
 
@@ -128,11 +128,10 @@ When all due problems have been completed, the session enters free practice. Suc
 
 - `hone` (no args) — open the stats dashboard / home screen
 - `hone practice` — show start screen with due count, then launch the next problem
-- `hone add <url>` — add a single problem by URL
 - `hone import` — guided import wizard (no flags); or use flags:
+  - `hone import --url URL` — add a single problem by URL
   - `hone import --playlist FILE` — playlist-aware bulk import; `# Name` lines define playlists
   - `hone import --backup FILE` — restore from JSON backup; only works if DB doesn't exist yet
-  - `hone import --url URL` — add a single problem (same as `hone add`)
 - `hone export` — guided export wizard (no flags); or use flags:
   - `hone export --backup [-o FILE]` — full JSON dump of all data
   - `hone export --playlist [-o FILE]` — all playlists in text format

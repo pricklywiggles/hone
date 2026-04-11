@@ -27,7 +27,7 @@ var practiceCmd = &cobra.Command{
 			return err
 		}
 		if len(queue) == 0 {
-			fmt.Println("No problems yet. Add some with: hone add <url>")
+			fmt.Println("No problems yet. Add some with: hone import --url <url>")
 			return nil
 		}
 
