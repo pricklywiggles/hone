@@ -351,7 +351,7 @@ func (m PracticeModel) saveAttempt(r monitor.Result) tea.Cmd {
 		}
 
 		wasMastered := m.srsState.MasteredBefore == 1
-		newState := srs.UpdateSRS(*m.srsState, r.Success, durationMin, thresholds, time.Now().UTC())
+		newState := srs.UpdateSRS(*m.srsState, r.Success, durationMin, thresholds, time.Now())
 		_ = store.SaveSRSState(m.db, newState)
 
 		fStats, _ := store.GetTodayStatsFiltered(m.db, m.filter)
@@ -744,15 +744,9 @@ func (m PracticeModel) viewDone() string {
 		filterLabel = m.filterName
 	}
 	fs := m.filterStats
-	fRemaining := fs.DueToday - fs.Attempted
-	if fRemaining < 0 {
-		fRemaining = 0
-	}
+	fRemaining := fs.DueRemaining
 	os := m.overallStats
-	oRemaining := os.DueToday - os.Attempted
-	if oRemaining < 0 {
-		oRemaining = 0
-	}
+	oRemaining := os.DueRemaining
 
 	statsHeader = lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render("Today's Stats")
 	filterLine = prDimStyle.Render(filterLabel) + "\n" +

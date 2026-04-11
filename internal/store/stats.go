@@ -229,9 +229,9 @@ func GetRecentAttempts(db *sqlx.DB, n int) ([]RecentAttempt, error) {
 
 // TodayStats holds the number of attempts and successes for today.
 type TodayStats struct {
-	Attempted int `db:"attempted"`
-	Succeeded int `db:"succeeded"`
-	DueToday  int `db:"due_today"`
+	Attempted    int `db:"attempted"`
+	Succeeded    int `db:"succeeded"`
+	DueRemaining int `db:"due_remaining"`
 }
 
 // GetTodayStats returns how many problems were attempted and solved today (local time),
@@ -244,8 +244,13 @@ func GetTodayStats(db *sqlx.DB) (TodayStats, error) {
 			(SELECT COUNT(*) FROM attempts WHERE date(started_at, 'localtime') = ?) AS attempted,
 			(SELECT COALESCE(SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END), 0)
 			 FROM attempts WHERE date(started_at, 'localtime') = ?) AS succeeded,
-			(SELECT COUNT(*) FROM problem_srs WHERE next_review_date <= ?) AS due_today
-	`, today, today, today)
+			(SELECT COUNT(*) FROM problem_srs
+			 WHERE next_review_date <= ?
+			 AND problem_id NOT IN (
+				 SELECT DISTINCT problem_id FROM attempts
+				 WHERE date(started_at, 'localtime') = ?
+			 )) AS due_remaining
+	`, today, today, today, today)
 	return s, err
 }
 
@@ -254,26 +259,40 @@ func GetTodayStats(db *sqlx.DB) (TodayStats, error) {
 func GetTodayStatsFiltered(db *sqlx.DB, filter PracticeFilter) (TodayStats, error) {
 	today := localToday()
 
-	var attemptJoin, dueJoin string
-	var attemptArgs, dueArgs []any
+	var attemptJoin, dueJoin, excludeJoin string
+	var args []any
 
 	if filter.PlaylistID != nil {
 		attemptJoin = ` JOIN playlist_problems pp ON pp.problem_id = a.problem_id AND pp.playlist_id = ?`
-		attemptArgs = append(attemptArgs, *filter.PlaylistID)
 		dueJoin = ` JOIN playlist_problems pp ON pp.problem_id = ps.problem_id AND pp.playlist_id = ?`
-		dueArgs = append(dueArgs, *filter.PlaylistID)
+		excludeJoin = ` JOIN playlist_problems pp ON pp.problem_id = a.problem_id AND pp.playlist_id = ?`
 	}
 	if filter.TopicID != nil {
 		attemptJoin += ` JOIN problem_topics pt ON pt.problem_id = a.problem_id AND pt.topic_id = ?`
-		attemptArgs = append(attemptArgs, *filter.TopicID)
 		dueJoin += ` JOIN problem_topics pt ON pt.problem_id = ps.problem_id AND pt.topic_id = ?`
-		dueArgs = append(dueArgs, *filter.TopicID)
+		excludeJoin += ` JOIN problem_topics pt ON pt.problem_id = a.problem_id AND pt.topic_id = ?`
 	}
 
-	attemptArgs = append(attemptArgs, today)
-	dueArgs = append(dueArgs, today)
-	allArgs := append(attemptArgs, attemptArgs...)
-	allArgs = append(allArgs, dueArgs...)
+	addFilterArgs := func() {
+		if filter.PlaylistID != nil {
+			args = append(args, *filter.PlaylistID)
+		}
+		if filter.TopicID != nil {
+			args = append(args, *filter.TopicID)
+		}
+	}
+
+	// attempted subquery args
+	addFilterArgs()
+	args = append(args, today)
+	// succeeded subquery args
+	addFilterArgs()
+	args = append(args, today)
+	// due_remaining subquery args (due join + exclude join + two dates)
+	addFilterArgs()
+	args = append(args, today)
+	addFilterArgs()
+	args = append(args, today)
 
 	var s TodayStats
 	err := db.Get(&s, `
@@ -284,8 +303,12 @@ func GetTodayStatsFiltered(db *sqlx.DB, filter PracticeFilter) (TodayStats, erro
 			 FROM attempts a`+attemptJoin+`
 			 WHERE date(a.started_at, 'localtime') = ?) AS succeeded,
 			(SELECT COUNT(*) FROM problem_srs ps`+dueJoin+`
-			 WHERE ps.next_review_date <= ?) AS due_today
-	`, allArgs...)
+			 WHERE ps.next_review_date <= ?
+			 AND ps.problem_id NOT IN (
+				 SELECT DISTINCT a.problem_id FROM attempts a`+excludeJoin+`
+				 WHERE date(a.started_at, 'localtime') = ?
+			 )) AS due_remaining
+	`, args...)
 	return s, err
 }
 

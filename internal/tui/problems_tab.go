@@ -321,7 +321,7 @@ func formatNextReview(date string, overdue bool) string {
 }
 
 func isToday(date string) bool {
-	today := time.Now().UTC().Format("2006-01-02")
+	today := time.Now().Format("2006-01-02")
 	return date == today
 }
 

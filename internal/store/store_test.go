@@ -23,9 +23,13 @@ func TestPickNext_DueFirst(t *testing.T) {
 	seedProblem(t, d, "leetcode", "longest-substring", "hard")
 
 	// Set next_review_date: problem 1 = yesterday, problem 2 = today, problem 3 = tomorrow
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '-1 day') WHERE problem_id = 1`)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now') WHERE problem_id = 2`)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+1 day') WHERE problem_id = 3`)
+	// Use localToday() since next_review_date is stored in local time.
+	today := localToday()
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 1`, yesterday)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 2`, today)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 3`, tomorrow)
 
 	problem, _, due, err := PickNext(d, PracticeFilter{})
 	if err != nil {
@@ -50,8 +54,8 @@ func TestPickNext_UpcomingWhenNoneDue(t *testing.T) {
 	seedProblem(t, d, "leetcode", "add-two-numbers", "medium")
 
 	// Both problems scheduled in the future
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+3 day') WHERE problem_id = 1`)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+1 day') WHERE problem_id = 2`)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 1`, time.Now().AddDate(0, 0, 3).Format("2006-01-02"))
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 2`, time.Now().AddDate(0, 0, 1).Format("2006-01-02"))
 
 	problem, _, due, err := PickNext(d, PracticeFilter{})
 	if err != nil {
@@ -97,7 +101,8 @@ func TestPickNext_PlaylistFilter(t *testing.T) {
 	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 2, 0)`)
 
 	// Both due
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '-1 day')`)
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ?`, yesterday)
 
 	playlistID := 1
 	problem, _, _, err := PickNext(d, PracticeFilter{PlaylistID: &playlistID})
@@ -192,7 +197,7 @@ func TestPickNext_TiebreakByDifficulty(t *testing.T) {
 	}
 
 	// Advance the easy problem so it's no longer due.
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+7 day') WHERE problem_id = ?`, problem.ID)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = ?`, time.Now().AddDate(0, 0, 7).Format("2006-01-02"), problem.ID)
 
 	problem, _, _, err = PickNext(d, PracticeFilter{})
 	if err != nil {
@@ -232,7 +237,7 @@ func TestPickNext_TiebreakPlaylistOrder(t *testing.T) {
 		t.Errorf("expected gamma (position 0) first, got %s", problem.Slug)
 	}
 
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+7 day') WHERE problem_id = ?`, problem.ID)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = ?`, time.Now().AddDate(0, 0, 7).Format("2006-01-02"), problem.ID)
 
 	problem, _, _, err = PickNext(d, filter)
 	if err != nil {
@@ -281,9 +286,12 @@ func TestListPickQueue(t *testing.T) {
 	seedProblem(t, d, "leetcode", "longest-substring", "hard")
 
 	// problem 1 = yesterday (due), problem 2 = today (due), problem 3 = tomorrow (upcoming)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '-1 day') WHERE problem_id = 1`)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now') WHERE problem_id = 2`)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+1 day') WHERE problem_id = 3`)
+	today := localToday()
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 1`, yesterday)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 2`, today)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 3`, tomorrow)
 
 	queue, err := ListPickQueue(d, PracticeFilter{})
 	if err != nil {
