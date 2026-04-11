@@ -94,8 +94,8 @@ func RestoreFromBackup(db *sqlx.DB, data BackupData) error {
 		}
 
 		// Use NULL for optional fields when empty/zero.
-		var completedAt, result interface{}
-		var durationSec, quality interface{}
+		var completedAt, result any
+		var durationSec, quality any
 
 		if a.CompletedAt != "" {
 			completedAt = a.CompletedAt

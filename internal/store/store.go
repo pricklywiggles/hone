@@ -245,9 +245,9 @@ func ResolveFilterName(db *sqlx.DB, f PracticeFilter) string {
 	return ""
 }
 
-func filterClauses(f PracticeFilter) (string, []interface{}) {
+func filterClauses(f PracticeFilter) (string, []any) {
 	var join string
-	var args []interface{}
+	var args []any
 	if f.PlaylistID != nil {
 		join += " JOIN playlist_problems pp ON pp.problem_id = p.id AND pp.playlist_id = ?"
 		args = append(args, *f.PlaylistID)

@@ -2,6 +2,7 @@ package backup
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,10 +43,10 @@ type PlaylistBackup struct {
 type AttemptBackup struct {
 	Problem         string `json:"problem"` // "platform/slug"
 	StartedAt       string `json:"started_at"`
-	CompletedAt     string `json:"completed_at,omitempty"`
-	Result          string `json:"result,omitempty"`
-	DurationSeconds int    `json:"duration_seconds,omitempty"`
-	Quality         int    `json:"quality,omitempty"`
+	CompletedAt     string `json:"completed_at,omitzero"`
+	Result          string `json:"result,omitzero"`
+	DurationSeconds int    `json:"duration_seconds,omitzero"`
+	Quality         int    `json:"quality,omitzero"`
 }
 
 // ExportFullBackup collects all problems, SRS state, playlists, and attempts.
@@ -217,7 +218,7 @@ func loadProblemBackups(db *sqlx.DB) ([]ProblemBackup, error) {
 	for i, r := range rows {
 		var topics []string
 		if r.TopicsStr != "" {
-			topics = strings.Split(r.TopicsStr, "|")
+			topics = slices.Collect(strings.SplitSeq(r.TopicsStr, "|"))
 		}
 		out[i] = ProblemBackup{
 			Platform:        r.Platform,
