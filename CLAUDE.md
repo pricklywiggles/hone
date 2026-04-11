@@ -122,6 +122,8 @@ Practice sessions pre-compile the full queue at startup using `store.ListPickQue
 
 Attempt timestamps (`started_at`) are stored in UTC and converted at query time with SQLite's `date(col, 'localtime')`. Scheduling dates (`next_review_date`) are stored in local time because they are date-only fields with no time component to convert — they must match `localToday()` comparisons directly.
 
+When all due problems have been completed, the session enters free practice. Successful solves on upcoming problems record the attempt for stats but do not update SRS state (interval, EF, and next_review_date stay unchanged). Failures still reset SRS normally — a failure is evidence of forgetting regardless of schedule.
+
 ## Key Commands
 
 - `hone` (no args) — open the stats dashboard / home screen

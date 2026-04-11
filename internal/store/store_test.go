@@ -330,6 +330,146 @@ func TestListPickQueue_Empty(t *testing.T) {
 	}
 }
 
+func TestGetTodayStats(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium")
+	seedProblem(t, d, "leetcode", "longest-substring", "hard")
+
+	// All three due today.
+	today := localToday()
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ?`, today)
+
+	// No attempts yet: 3 due remaining.
+	s, err := GetTodayStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.DueRemaining != 3 {
+		t.Errorf("DueRemaining = %d, want 3", s.DueRemaining)
+	}
+	if s.Attempted != 0 || s.Succeeded != 0 {
+		t.Errorf("expected 0 attempted/succeeded, got %d/%d", s.Attempted, s.Succeeded)
+	}
+
+	// Attempt problem 1 (success).
+	now := time.Now().UTC()
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	s, err = GetTodayStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Attempted != 1 {
+		t.Errorf("Attempted = %d, want 1", s.Attempted)
+	}
+	if s.Succeeded != 1 {
+		t.Errorf("Succeeded = %d, want 1", s.Succeeded)
+	}
+	if s.DueRemaining != 2 {
+		t.Errorf("DueRemaining = %d, want 2", s.DueRemaining)
+	}
+
+	// Retry problem 1 (fail) — Attempted goes up but DueRemaining stays at 2.
+	RecordAttempt(d, 1, now, now.Add(10*time.Minute), "fail", 600, 1)
+
+	s, err = GetTodayStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Attempted != 2 {
+		t.Errorf("Attempted = %d, want 2 (retries count)", s.Attempted)
+	}
+	if s.DueRemaining != 2 {
+		t.Errorf("DueRemaining = %d, want 2 (retry shouldn't decrement)", s.DueRemaining)
+	}
+}
+
+func TestGetTodayStatsFiltered(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")       // id 1
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium") // id 2
+
+	today := localToday()
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ?`, today)
+
+	d.MustExec(`INSERT INTO playlists (name) VALUES ('my-list')`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 1, 0)`)
+
+	playlistID := 1
+	filter := PracticeFilter{PlaylistID: &playlistID}
+
+	// Only problem 1 is in the playlist.
+	s, err := GetTodayStatsFiltered(d, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.DueRemaining != 1 {
+		t.Errorf("DueRemaining = %d, want 1 (only 1 problem in playlist)", s.DueRemaining)
+	}
+
+	// Attempt problem 1.
+	now := time.Now().UTC()
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	s, err = GetTodayStatsFiltered(d, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Attempted != 1 {
+		t.Errorf("Attempted = %d, want 1", s.Attempted)
+	}
+	if s.DueRemaining != 0 {
+		t.Errorf("DueRemaining = %d, want 0", s.DueRemaining)
+	}
+
+	// Attempt problem 2 (not in playlist) — filtered stats shouldn't change.
+	RecordAttempt(d, 2, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	s, err = GetTodayStatsFiltered(d, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Attempted != 1 {
+		t.Errorf("Attempted = %d, want 1 (problem 2 not in playlist)", s.Attempted)
+	}
+}
+
+func TestResolveFilterName(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	if name := ResolveFilterName(d, PracticeFilter{}); name != "" {
+		t.Errorf("empty filter: got %q, want empty", name)
+	}
+
+	d.MustExec(`INSERT INTO playlists (name) VALUES ('binary trees')`)
+	playlistID := 1
+	if name := ResolveFilterName(d, PracticeFilter{PlaylistID: &playlistID}); name != "binary trees" {
+		t.Errorf("playlist filter: got %q, want %q", name, "binary trees")
+	}
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	d.MustExec(`INSERT INTO topics (name) VALUES ('arrays')`)
+	topicID := 1
+	if name := ResolveFilterName(d, PracticeFilter{TopicID: &topicID}); name != "arrays" {
+		t.Errorf("topic filter: got %q, want %q", name, "arrays")
+	}
+}
+
 func seedProblem(t *testing.T, d *sqlx.DB, platform, slug, difficulty string) {
 	t.Helper()
 	d.MustExec(
