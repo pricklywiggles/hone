@@ -166,10 +166,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m DashboardModel) switchTab(t tabID) (DashboardModel, tea.Cmd) {
 	m.active = t
-	m.filter = store.PracticeFilter{
-		PlaylistID: config.ActivePlaylistID(),
-		TopicID:    config.ActiveTopicID(),
-	}
+	m.syncFilter()
 	m.problems.filter = m.filter
 	m.stats.filter = m.filter
 	var cmd tea.Cmd
@@ -201,14 +198,23 @@ func (m DashboardModel) routeToActive(msg tea.Msg) (DashboardModel, tea.Cmd) {
 	case tabPlaylists:
 		newModel, cmd := m.playlists.Update(msg)
 		m.playlists = newModel.(PlaylistHubModel)
+		m.syncFilter()
 		return m, cmd
 
 	case tabTopics:
 		newModel, cmd := m.topics.Update(msg)
 		m.topics = newModel.(TopicsTabModel)
+		m.syncFilter()
 		return m, cmd
 	}
 	return m, nil
+}
+
+func (m *DashboardModel) syncFilter() {
+	m.filter = store.PracticeFilter{
+		PlaylistID: config.ActivePlaylistID(),
+		TopicID:    config.ActiveTopicID(),
+	}
 }
 
 func (m DashboardModel) View() string {
