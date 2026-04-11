@@ -2,6 +2,7 @@ package backup
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -188,6 +189,104 @@ func TestExportPlaylistFormat(t *testing.T) {
 	// Should contain playlist header.
 	if !contains(out, "# Week 1") {
 		t.Errorf("missing playlist header in output:\n%s", out)
+	}
+}
+
+func TestExportPlaylistFormat_Order(t *testing.T) {
+	testDB, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDB.Close()
+
+	// Insert 3 problems — alphabetically: climbing, two-sum, valid-anagram.
+	id1, _ := store.InsertProblem(testDB, "neetcode", "valid-anagram", "Valid Anagram", "easy", nil)
+	id2, _ := store.InsertProblem(testDB, "neetcode", "two-sum", "Two Sum", "easy", nil)
+	id3, _ := store.InsertProblem(testDB, "neetcode", "climbing-stairs", "Climbing Stairs", "easy", nil)
+
+	// Add to playlist in reverse-alphabetical position order.
+	plID, _ := store.CreatePlaylist(testDB, "Ordered")
+	store.AddProblemToPlaylist(testDB, int(plID), int(id1)) // pos 0: valid-anagram
+	store.AddProblemToPlaylist(testDB, int(plID), int(id2)) // pos 1: two-sum
+	store.AddProblemToPlaylist(testDB, int(plID), int(id3)) // pos 2: climbing-stairs
+
+	out, err := ExportPlaylistFormat(testDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	// Skip the "# Ordered" header line.
+	var urls []string
+	for _, l := range lines {
+		if l != "" && !strings.HasPrefix(l, "#") {
+			urls = append(urls, l)
+		}
+	}
+
+	if len(urls) != 3 {
+		t.Fatalf("expected 3 URLs, got %d: %v", len(urls), urls)
+	}
+	// Position order: valid-anagram, two-sum, climbing-stairs.
+	if !strings.Contains(urls[0], "valid-anagram") {
+		t.Errorf("urls[0]: want valid-anagram, got %s", urls[0])
+	}
+	if !strings.Contains(urls[1], "two-sum") {
+		t.Errorf("urls[1]: want two-sum, got %s", urls[1])
+	}
+	if !strings.Contains(urls[2], "climbing-stairs") {
+		t.Errorf("urls[2]: want climbing-stairs, got %s", urls[2])
+	}
+}
+
+func TestExportSinglePlaylistFormat(t *testing.T) {
+	testDB, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDB.Close()
+
+	id1, _ := store.InsertProblem(testDB, "leetcode", "two-sum", "Two Sum", "easy", nil)
+	id2, _ := store.InsertProblem(testDB, "neetcode", "valid-anagram", "Valid Anagram", "easy", nil)
+
+	plID, _ := store.CreatePlaylist(testDB, "Favorites")
+	store.AddProblemToPlaylist(testDB, int(plID), int(id2)) // pos 0
+	store.AddProblemToPlaylist(testDB, int(plID), int(id1)) // pos 1
+
+	out, err := ExportSinglePlaylistFormat(testDB, "Favorites")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines (header + 2 URLs), got %d: %v", len(lines), lines)
+	}
+	if lines[0] != "# Favorites" {
+		t.Errorf("header: got %q, want %q", lines[0], "# Favorites")
+	}
+	// Position order: valid-anagram first, two-sum second.
+	if !strings.Contains(lines[1], "valid-anagram") {
+		t.Errorf("lines[1]: want valid-anagram URL, got %s", lines[1])
+	}
+	if !strings.Contains(lines[2], "two-sum") {
+		t.Errorf("lines[2]: want two-sum URL, got %s", lines[2])
+	}
+}
+
+func TestExportSinglePlaylistFormat_NotFound(t *testing.T) {
+	testDB, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDB.Close()
+
+	_, err = ExportSinglePlaylistFormat(testDB, "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for non-existent playlist")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found', got: %s", err)
 	}
 }
 
