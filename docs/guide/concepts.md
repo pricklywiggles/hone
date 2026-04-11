@@ -1,4 +1,4 @@
-# Concepts
+# Learning
 
 ## Spaced repetition
 
@@ -75,6 +75,14 @@ If a mastered problem is failed (EF decays, interval resets), it resurfaces for 
 3. **Pick rule** — if due problems exist, pick the most overdue (oldest date first); ties break by difficulty (easy first), then playlist position or random. Otherwise pick the one with the nearest upcoming date
 
 The TUI makes the distinction clear: "you have 5 problems due" vs "nothing due today — here's one in 3 days."
+
+### Free practice
+
+When all due problems have been completed, hone shows a congratulations screen and enters **free practice** mode. You can keep practicing upcoming problems, but SRS is frozen for successful solves — the attempt is recorded for stats, but the interval, EF, and next review date stay unchanged.
+
+The reasoning: spaced repetition works because of the spacing. Solving a problem three times in one sitting proves you can hold it in working memory, not that you've built durable recall. Inflating intervals from same-day re-solves would undermine the scheduling.
+
+**Failures still reset SRS.** If you fail an upcoming problem, hone resets its SRS state normally (interval back to 1, repetition count to 0) because a failure is genuine evidence of forgetting regardless of when the problem was scheduled.
 
 ---
 

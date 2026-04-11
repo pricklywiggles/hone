@@ -149,14 +149,7 @@ jobs:
               cat /tmp/notarize-result.json || true
               echo ""
 
-              status=$(python3 -c "
-import sys, json
-try:
-    d = json.load(open('/tmp/notarize-result.json'))
-    print(d.get('status', ''))
-except Exception:
-    print('')
-")
+              status=$(python3 -c "import json; d=json.load(open('/tmp/notarize-result.json')); print(d.get('status',''))" 2>/dev/null || echo "")
               if [ "$status" = "Accepted" ]; then
                 echo "  Notarization accepted."
                 success=true
@@ -172,14 +165,7 @@ except Exception:
             if [ "$success" != "true" ]; then
               echo "::error::Notarization failed for $dir after 3 attempts"
               cat /tmp/notarize-result.json || true
-              sub_id=$(python3 -c "
-import json
-try:
-    d = json.load(open('/tmp/notarize-result.json'))
-    print(d.get('id', ''))
-except Exception:
-    print('')
-")
+              sub_id=$(python3 -c "import json; d=json.load(open('/tmp/notarize-result.json')); print(d.get('id',''))" 2>/dev/null || echo "")
               if [ -n "$sub_id" ]; then
                 echo "Fetching notarization log for $sub_id..."
                 xcrun notarytool log "$sub_id" \

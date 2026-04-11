@@ -22,7 +22,9 @@ hone add <url>          # add a single problem by URL
 hone import file.txt    # bulk import with playlist grouping
 ```
 
-The **spaced repetition engine** schedules each problem based on how quickly you solved it and how recently you attempted it. Problems you struggle with come back sooner; problems you've mastered fade into the background.
+The **spaced repetition engine** uses a modified SM-2 algorithm to schedule reviews at increasing intervals. After each attempt, hone derives a quality score from your solve time — no self-reporting needed. Solve quickly and the interval grows; solve slowly and it stays shorter; fail and it resets to tomorrow. Problems you've mastered fade into the background, while problems you struggle with keep coming back until they stick.
+
+When you finish all due problems in a session, you can keep practicing — hone enters **free practice** mode and serves upcoming problems without advancing their SRS state, so your intervals stay honest. [Learn more →](guide/concepts.md)
 
 ---
 
@@ -71,5 +73,5 @@ hone practice
 | [Dashboard Guide](guide/dashboard.md) | Tabs, shortcuts, filters |
 | [Import & Export](guide/import-export.md) | File format, backup/restore |
 | [Configuration](guide/configuration.md) | Config file, thresholds, platform templates |
-| [Concepts](guide/concepts.md) | How SM-2 works in hone |
+| [Learning](guide/concepts.md) | How spaced repetition and the SM-2 algorithm work in hone |
 | [Architecture](dev/architecture.md) | Package map and data flow |

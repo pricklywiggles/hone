@@ -32,7 +32,7 @@ nav:
     - Dashboard Guide: guide/dashboard.md
     - Import & Export: guide/import-export.md
     - Configuration: guide/configuration.md
-    - Concepts: guide/concepts.md
+    - Learning: guide/concepts.md
   - Developer:
     - Architecture: dev/architecture.md
     - TUI Development: dev/tui.md

@@ -12,23 +12,25 @@ hone
 
 ## `hone practice`
 
-Picks the next due problem and opens it in a browser window.
+Shows a start screen with your active playlist, due count, and queue size, then picks the next problem and opens it in a browser window.
 
 ```sh
 hone practice
 ```
 
-The picker respects the active filter (playlist or topic). If nothing is due today, hone picks the problem with the nearest upcoming review date and tells you how many days early you are.
+The picker respects the active filter (playlist or topic). If nothing is due today, the start screen tells you and offers free practice on upcoming problems.
 
 **Flow:**
 
-1. Pick → display problem info (title, difficulty, topics, due status)
-2. Open problem URL in Chrome
-3. Start timer
-4. Detect submission result from the DOM
-5. Compute quality from result + solve time
-6. Update SRS state and record attempt
-7. Show summary (result, time, next review)
+1. Show start screen (playlist/topic name, due count, queue size)
+2. Press Enter → open the first problem in Chrome, start timer
+3. Detect submission result from the DOM
+4. Compute quality from result + solve time
+5. Update SRS state and record attempt
+6. Show done card (result, time, quality, next review, today's stats)
+7. Press Enter → next problem (or quit)
+
+When all due problems are completed, a congratulations screen appears. You can continue into free practice (SRS frozen for successful solves) or quit.
 
 ---
 

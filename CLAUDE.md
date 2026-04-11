@@ -63,7 +63,7 @@ Running the CLI with no arguments opens the **statistics dashboard** as the land
 - **Attempts** — id, problem_id, started_at, completed_at, result (success/fail), duration_seconds, quality (int, 1–5)
 - **ProblemSRS** — problem_id, easiness_factor (float, default 2.5), interval_days (int, default 1), repetition_count (int, consecutive successes), next_review_date (date), mastered_before (bool, default false)
 
-An active playlist OR active topic is stored in config (`active_playlist_id` / `active_topic_id`). The two are **mutually exclusive**: `config.SetActivePlaylist` clears `active_topic_id` and vice versa. The unified `store.PracticeFilter{PlaylistID *int, TopicID *int}` struct is threaded through the app; `store.PickNext` and stats queries apply whichever field is non-nil.
+An active playlist OR active topic is stored in config (`active_playlist_id` / `active_topic_id`). The two are **mutually exclusive**: `config.SetActivePlaylist` clears `active_topic_id` and vice versa. The unified `store.PracticeFilter{PlaylistID *int, TopicID *int}` struct is threaded through the app; `store.ListPickQueue` and stats queries apply whichever field is non-nil.
 
 ## Picker Algorithm (SM-2 Based Spaced Repetition)
 
@@ -116,10 +116,18 @@ New problems start with `easiness_factor = 2.5`, `interval_days = 1`, `repetitio
 
 The SM-2 easiness factor update is a single generic function: `EF' = EF + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))`. It takes a `quality` parameter (0–5). Implement it as such — the quality value is derived from duration thresholds on success and hardcoded to 1 on failure.
 
+### Practice session architecture
+
+Practice sessions pre-compile the full queue at startup using `store.ListPickQueue`, which returns all due problems followed by upcoming problems in pick order. The queue is stored in the `PracticeModel` and popped as problems are completed — no further DB picks during a session.
+
+Attempt timestamps (`started_at`) are stored in UTC and converted at query time with SQLite's `date(col, 'localtime')`. Scheduling dates (`next_review_date`) are stored in local time because they are date-only fields with no time component to convert — they must match `localToday()` comparisons directly.
+
+When all due problems have been completed, the session enters free practice. Successful solves on upcoming problems record the attempt for stats but do not update SRS state (interval, EF, and next_review_date stay unchanged). Failures still reset SRS normally — a failure is evidence of forgetting regardless of schedule.
+
 ## Key Commands
 
 - `hone` (no args) — open the stats dashboard / home screen
-- `hone practice` — pick and launch the next problem
+- `hone practice` — show start screen with due count, then launch the next problem
 - `hone add` — parse a pasted URL to extract platform and slug, scrape the page, and create a problem entry
 - `hone add -f FILE` — batch import from a flat URL list (one per line)
 - `hone import FILE` — playlist-aware bulk import; `#Name` lines define playlist boundaries

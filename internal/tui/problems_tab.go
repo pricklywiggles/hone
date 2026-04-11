@@ -175,11 +175,10 @@ func (m ProblemsTabModel) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err != nil {
 				return nil
 			}
-			isDue := !row.IsOverdue && isToday(row.NextReview)
-			if row.IsOverdue {
-				isDue = true
-			}
-			practiceModel := NewPracticeModel(m.db, m.profileDir, problem, srsState, isDue, m.filter)
+			isDue := row.IsOverdue || isToday(row.NextReview)
+			queue := []store.QueueEntry{{Problem: *problem, SRS: *srsState, IsDue: isDue}}
+			filterName := store.ResolveFilterName(m.db, m.filter)
+			practiceModel := NewPracticeModel(m.db, m.profileDir, queue, m.filter, filterName)
 			return PushMsg{Model: practiceModel}
 		}
 	}
@@ -322,7 +321,7 @@ func formatNextReview(date string, overdue bool) string {
 }
 
 func isToday(date string) bool {
-	today := time.Now().UTC().Format("2006-01-02")
+	today := time.Now().Format("2006-01-02")
 	return date == today
 }
 

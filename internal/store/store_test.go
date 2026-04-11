@@ -23,9 +23,13 @@ func TestPickNext_DueFirst(t *testing.T) {
 	seedProblem(t, d, "leetcode", "longest-substring", "hard")
 
 	// Set next_review_date: problem 1 = yesterday, problem 2 = today, problem 3 = tomorrow
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '-1 day') WHERE problem_id = 1`)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now') WHERE problem_id = 2`)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+1 day') WHERE problem_id = 3`)
+	// Use localToday() since next_review_date is stored in local time.
+	today := localToday()
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 1`, yesterday)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 2`, today)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 3`, tomorrow)
 
 	problem, _, due, err := PickNext(d, PracticeFilter{})
 	if err != nil {
@@ -50,8 +54,8 @@ func TestPickNext_UpcomingWhenNoneDue(t *testing.T) {
 	seedProblem(t, d, "leetcode", "add-two-numbers", "medium")
 
 	// Both problems scheduled in the future
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+3 day') WHERE problem_id = 1`)
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+1 day') WHERE problem_id = 2`)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 1`, time.Now().AddDate(0, 0, 3).Format("2006-01-02"))
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 2`, time.Now().AddDate(0, 0, 1).Format("2006-01-02"))
 
 	problem, _, due, err := PickNext(d, PracticeFilter{})
 	if err != nil {
@@ -97,7 +101,8 @@ func TestPickNext_PlaylistFilter(t *testing.T) {
 	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 2, 0)`)
 
 	// Both due
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '-1 day')`)
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ?`, yesterday)
 
 	playlistID := 1
 	problem, _, _, err := PickNext(d, PracticeFilter{PlaylistID: &playlistID})
@@ -192,7 +197,7 @@ func TestPickNext_TiebreakByDifficulty(t *testing.T) {
 	}
 
 	// Advance the easy problem so it's no longer due.
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+7 day') WHERE problem_id = ?`, problem.ID)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = ?`, time.Now().AddDate(0, 0, 7).Format("2006-01-02"), problem.ID)
 
 	problem, _, _, err = PickNext(d, PracticeFilter{})
 	if err != nil {
@@ -232,7 +237,7 @@ func TestPickNext_TiebreakPlaylistOrder(t *testing.T) {
 		t.Errorf("expected gamma (position 0) first, got %s", problem.Slug)
 	}
 
-	d.MustExec(`UPDATE problem_srs SET next_review_date = date('now', '+7 day') WHERE problem_id = ?`, problem.ID)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = ?`, time.Now().AddDate(0, 0, 7).Format("2006-01-02"), problem.ID)
 
 	problem, _, _, err = PickNext(d, filter)
 	if err != nil {
@@ -266,6 +271,202 @@ func TestPickNext_TiebreakRandomWithoutPlaylist(t *testing.T) {
 
 	if len(seen) < 2 {
 		t.Errorf("expected random tiebreaking to pick at least 2 different problems across 30 calls, but only saw %d", len(seen))
+	}
+}
+
+func TestListPickQueue(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium")
+	seedProblem(t, d, "leetcode", "longest-substring", "hard")
+
+	// problem 1 = yesterday (due), problem 2 = today (due), problem 3 = tomorrow (upcoming)
+	today := localToday()
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 1`, yesterday)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 2`, today)
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ? WHERE problem_id = 3`, tomorrow)
+
+	queue, err := ListPickQueue(d, PracticeFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(queue))
+	}
+
+	// Due problems first, ordered by date (most overdue first)
+	if queue[0].Problem.Slug != "two-sum" || !queue[0].IsDue {
+		t.Errorf("queue[0]: expected two-sum (due), got %s (due=%v)", queue[0].Problem.Slug, queue[0].IsDue)
+	}
+	if queue[1].Problem.Slug != "add-two-numbers" || !queue[1].IsDue {
+		t.Errorf("queue[1]: expected add-two-numbers (due), got %s (due=%v)", queue[1].Problem.Slug, queue[1].IsDue)
+	}
+	// Upcoming last
+	if queue[2].Problem.Slug != "longest-substring" || queue[2].IsDue {
+		t.Errorf("queue[2]: expected longest-substring (upcoming), got %s (due=%v)", queue[2].Problem.Slug, queue[2].IsDue)
+	}
+}
+
+func TestListPickQueue_Empty(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	queue, err := ListPickQueue(d, PracticeFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue) != 0 {
+		t.Errorf("expected empty queue, got %d entries", len(queue))
+	}
+}
+
+func TestGetTodayStats(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium")
+	seedProblem(t, d, "leetcode", "longest-substring", "hard")
+
+	// All three due today.
+	today := localToday()
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ?`, today)
+
+	// No attempts yet: 3 due remaining.
+	s, err := GetTodayStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.DueRemaining != 3 {
+		t.Errorf("DueRemaining = %d, want 3", s.DueRemaining)
+	}
+	if s.Attempted != 0 || s.Succeeded != 0 {
+		t.Errorf("expected 0 attempted/succeeded, got %d/%d", s.Attempted, s.Succeeded)
+	}
+
+	// Attempt problem 1 (success).
+	now := time.Now().UTC()
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	s, err = GetTodayStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Attempted != 1 {
+		t.Errorf("Attempted = %d, want 1", s.Attempted)
+	}
+	if s.Succeeded != 1 {
+		t.Errorf("Succeeded = %d, want 1", s.Succeeded)
+	}
+	if s.DueRemaining != 2 {
+		t.Errorf("DueRemaining = %d, want 2", s.DueRemaining)
+	}
+
+	// Retry problem 1 (fail) — Attempted goes up but DueRemaining stays at 2.
+	RecordAttempt(d, 1, now, now.Add(10*time.Minute), "fail", 600, 1)
+
+	s, err = GetTodayStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Attempted != 2 {
+		t.Errorf("Attempted = %d, want 2 (retries count)", s.Attempted)
+	}
+	if s.DueRemaining != 2 {
+		t.Errorf("DueRemaining = %d, want 2 (retry shouldn't decrement)", s.DueRemaining)
+	}
+}
+
+func TestGetTodayStatsFiltered(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")       // id 1
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium") // id 2
+
+	today := localToday()
+	d.MustExec(`UPDATE problem_srs SET next_review_date = ?`, today)
+
+	d.MustExec(`INSERT INTO playlists (name) VALUES ('my-list')`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 1, 0)`)
+
+	playlistID := 1
+	filter := PracticeFilter{PlaylistID: &playlistID}
+
+	// Only problem 1 is in the playlist.
+	s, err := GetTodayStatsFiltered(d, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.DueRemaining != 1 {
+		t.Errorf("DueRemaining = %d, want 1 (only 1 problem in playlist)", s.DueRemaining)
+	}
+
+	// Attempt problem 1.
+	now := time.Now().UTC()
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	s, err = GetTodayStatsFiltered(d, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Attempted != 1 {
+		t.Errorf("Attempted = %d, want 1", s.Attempted)
+	}
+	if s.DueRemaining != 0 {
+		t.Errorf("DueRemaining = %d, want 0", s.DueRemaining)
+	}
+
+	// Attempt problem 2 (not in playlist) — filtered stats shouldn't change.
+	RecordAttempt(d, 2, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	s, err = GetTodayStatsFiltered(d, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Attempted != 1 {
+		t.Errorf("Attempted = %d, want 1 (problem 2 not in playlist)", s.Attempted)
+	}
+}
+
+func TestResolveFilterName(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	if name := ResolveFilterName(d, PracticeFilter{}); name != "" {
+		t.Errorf("empty filter: got %q, want empty", name)
+	}
+
+	d.MustExec(`INSERT INTO playlists (name) VALUES ('binary trees')`)
+	playlistID := 1
+	if name := ResolveFilterName(d, PracticeFilter{PlaylistID: &playlistID}); name != "binary trees" {
+		t.Errorf("playlist filter: got %q, want %q", name, "binary trees")
+	}
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	d.MustExec(`INSERT INTO topics (name) VALUES ('arrays')`)
+	topicID := 1
+	if name := ResolveFilterName(d, PracticeFilter{TopicID: &topicID}); name != "arrays" {
+		t.Errorf("topic filter: got %q, want %q", name, "arrays")
 	}
 }
 
