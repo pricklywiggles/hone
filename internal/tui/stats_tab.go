@@ -174,8 +174,8 @@ func (m *StatsTabModel) syncViewport() {
 	if vpH < 1 {
 		vpH = 1
 	}
-	// Content width: cardsWidth minus box borders (2) and box padding (2*2)
-	vpW := cardsWidth - 6
+	// Content width: cardsWidth minus box padding (2*2)
+	vpW := cardsWidth - 4
 	if vpW < 1 {
 		vpW = 1
 	}
@@ -199,7 +199,7 @@ func (m StatsTabModel) View() tea.View {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorDimBg).
 		Padding(0, 2).
-		Width(cardsWidth - 2).
+		Width(cardsWidth).
 		Render(m.viewport.View())
 
 	return tea.NewView(fixedHeader + lipgloss.NewStyle().MarginLeft(4).Render(box) + "\n" + statsIndent + m.help.View(statsKeyMap{}))
@@ -329,11 +329,6 @@ func (m StatsTabModel) renderScrollableContent() string {
 }
 
 func (m StatsTabModel) renderMetricCards() (string, int) {
-	masteredPct := 0
-	if m.overview.Total > 0 {
-		masteredPct = m.overview.Mastered * 100 / m.overview.Total
-	}
-
 	// Width sets content+padding width; borders add 2 more columns.
 	// Height must be uniform so JoinHorizontal doesn't pad outside the border.
 	cardW := 18
@@ -363,10 +358,10 @@ func (m StatsTabModel) renderMetricCards() (string, int) {
 		totalNum + "\n" + statsMetricLabelStyle.Render("problems"),
 	)
 	card4 := card(colorMastered).Render(
-		masteredNum + "\n" + statsMetricLabelStyle.Render(fmt.Sprintf("mastered (%d%%)", masteredPct)),
+		masteredNum + "\n" + statsMetricLabelStyle.Render("mastered"),
 	)
 
-	joined := lipgloss.JoinHorizontal(lipgloss.Top, card1, card2, card3, card4)
+	joined := lipgloss.JoinHorizontal(lipgloss.Top, card1, " ", card2, " ", card3, " ", card4)
 	innerWidth := lipgloss.Width(joined)
 	return lipgloss.NewStyle().MarginLeft(4).Render(joined), innerWidth
 }
@@ -381,8 +376,7 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 		remaining = 0
 	}
 
-	// Width(cardsWidth-2) includes padding(2+2=4), so content area = cardsWidth-2-4.
-	contentW := cardsWidth - 6
+	contentW := cardsWidth - 4
 	barW := contentW - 2
 
 	var inner strings.Builder
@@ -405,7 +399,7 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorAccent).
 		Padding(1, 2).
-		Width(cardsWidth - 2).
+		Width(cardsWidth).
 		Render(inner.String())
 
 	return "\n" + lipgloss.NewStyle().MarginLeft(4).Render(box)
