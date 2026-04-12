@@ -102,7 +102,7 @@ Press `p` from any tab to start a practice session using the active filter.
 | Path | Contents |
 |------|----------|
 | `~/.local/share/hone/data.db` | SQLite database (problems, SRS state, attempts, playlists) |
-| `~/.config/hone/config.yaml` | Config (active filter, thresholds, platform URL templates) |
+| `~/.config/hone/config.yaml` | Config (thresholds, platform URL templates) |
 | `~/.local/share/hone/browser-profile/` | Persistent Chrome profile (keeps you logged in to problem sites) |
 
 ---

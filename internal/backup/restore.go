@@ -85,7 +85,6 @@ func RestoreFromBackup(db *sqlx.DB, data BackupData) error {
 			}
 		}
 	}
-	_ = playlistIDs
 
 	for i, a := range data.Attempts {
 		probID, ok := problemIDs[a.Problem]
@@ -116,6 +115,21 @@ func RestoreFromBackup(db *sqlx.DB, data BackupData) error {
 			probID, a.StartedAt, completedAt, result, durationSec, quality)
 		if err != nil {
 			return fmt.Errorf("insert attempt %d: %w", i, err)
+		}
+	}
+
+	if data.ActivePlaylist != "" {
+		if plID, ok := playlistIDs[data.ActivePlaylist]; ok {
+			if _, err := tx.Exec(`UPDATE settings SET active_playlist_id = ?, active_topic_id = NULL WHERE id = 1`, plID); err != nil {
+				return fmt.Errorf("restore active playlist: %w", err)
+			}
+		}
+	} else if data.ActiveTopic != "" {
+		var topicID int64
+		if err := tx.QueryRow(`SELECT id FROM topics WHERE name = ?`, data.ActiveTopic).Scan(&topicID); err == nil {
+			if _, err := tx.Exec(`UPDATE settings SET active_topic_id = ?, active_playlist_id = NULL WHERE id = 1`, topicID); err != nil {
+				return fmt.Errorf("restore active topic: %w", err)
+			}
 		}
 	}
 

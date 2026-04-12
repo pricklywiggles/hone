@@ -30,6 +30,9 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("database: %w", err)
 		}
+		if err := config.MigrateActiveSettingsToDB(appDB); err != nil {
+			return fmt.Errorf("migrate settings: %w", err)
+		}
 		return nil
 	},
 	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
@@ -39,13 +42,13 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		filter := store.PracticeFilter{
-			PlaylistID: config.ActivePlaylistID(),
-			TopicID:    config.ActiveTopicID(),
+		filter, err := store.ActiveFilter(appDB)
+		if err != nil {
+			return err
 		}
 		dashboard := tui.NewDashboardModel(appDB, config.BrowserProfileDir(), filter)
 		router := tui.NewRouter(dashboard)
-		_, err := tui.Run(tui.NewSplashModel(router))
+		_, err = tui.Run(tui.NewSplashModel(router))
 		return err
 	},
 }

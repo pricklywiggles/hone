@@ -77,65 +77,6 @@ func ThresholdsFor(difficulty string) srs.Thresholds {
 	}
 }
 
-// ActivePlaylistID returns the configured active playlist ID, or nil if none set.
-// ID 0 is treated as "no playlist" (used to clear the selection).
-func ActivePlaylistID() *int {
-	if !viper.IsSet("active_playlist_id") {
-		return nil
-	}
-	id := viper.GetInt("active_playlist_id")
-	if id == 0 {
-		return nil
-	}
-	return &id
-}
-
-// SetActivePlaylist persists the active playlist ID and clears any active topic.
-func SetActivePlaylist(id int) error {
-	viper.Set("active_playlist_id", id)
-	viper.Set("active_topic_id", 0)
-	if err := viper.WriteConfig(); err != nil {
-		return viper.SafeWriteConfig()
-	}
-	return nil
-}
-
-// ClearActivePlaylist removes the active playlist selection.
-func ClearActivePlaylist() error {
-	return SetActivePlaylist(0)
-}
-
-// ActiveTopicID returns the configured active topic ID, or nil if none set.
-func ActiveTopicID() *int {
-	if !viper.IsSet("active_topic_id") {
-		return nil
-	}
-	id := viper.GetInt("active_topic_id")
-	if id == 0 {
-		return nil
-	}
-	return &id
-}
-
-// SetActiveTopic persists the active topic ID and clears any active playlist.
-func SetActiveTopic(id int) error {
-	viper.Set("active_topic_id", id)
-	viper.Set("active_playlist_id", 0)
-	if err := viper.WriteConfig(); err != nil {
-		return viper.SafeWriteConfig()
-	}
-	return nil
-}
-
-// ClearActiveTopic removes the active topic selection.
-func ClearActiveTopic() error {
-	viper.Set("active_topic_id", 0)
-	if err := viper.WriteConfig(); err != nil {
-		return viper.SafeWriteConfig()
-	}
-	return nil
-}
-
 // BuildURL constructs a problem URL from platform + slug using the configured template.
 func BuildURL(platform, slug string) string {
 	tmpl := viper.GetString("platforms." + platform + ".url_template")
