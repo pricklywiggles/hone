@@ -85,8 +85,8 @@ Quality is determined automatically from the outcome and solve duration. No self
 | Difficulty | Fast (quality 5) | Normal (quality 4) | Slow (quality 3) |
 |------------|-------------------|--------------------|-------------------|
 | Easy       | < 10 min          | 10–20 min          | > 20 min          |
-| Medium     | < 15 min          | 15–30 min          | > 30 min          |
-| Hard       | < 20 min          | 20–40 min          | > 40 min          |
+| Medium     | < 18 min          | 18–30 min          | > 30 min          |
+| Hard       | < 30 min          | 30–40 min          | > 40 min          |
 
 These thresholds are hardcoded defaults, overridable in config via Viper (e.g. `thresholds.easy.fast: 10`).
 

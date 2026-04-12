@@ -148,8 +148,8 @@ Quality thresholds and platform URL templates are overridable in `~/.config/hone
 ```yaml
 thresholds:
   easy:   { fast: 10, normal: 20 }   # minutes
-  medium: { fast: 15, normal: 30 }
-  hard:   { fast: 20, normal: 40 }
+  medium: { fast: 18, normal: 30 }
+  hard:   { fast: 30, normal: 40 }
 ```
 
 ---

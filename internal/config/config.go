@@ -89,9 +89,9 @@ func BuildURL(platform, slug string) string {
 func setDefaults() {
 	viper.SetDefault("thresholds.easy.fast", 10)
 	viper.SetDefault("thresholds.easy.normal", 20)
-	viper.SetDefault("thresholds.medium.fast", 15)
+	viper.SetDefault("thresholds.medium.fast", 18)
 	viper.SetDefault("thresholds.medium.normal", 30)
-	viper.SetDefault("thresholds.hard.fast", 20)
+	viper.SetDefault("thresholds.hard.fast", 30)
 	viper.SetDefault("thresholds.hard.normal", 40)
 
 	viper.SetDefault("auto_focus", true)

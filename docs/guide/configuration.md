@@ -24,10 +24,10 @@ thresholds:
     fast: 10    # minutes — quality 5 if faster than this
     normal: 20  # minutes — quality 4 if between fast and normal; quality 3 if slower
   medium:
-    fast: 15
+    fast: 18
     normal: 30
   hard:
-    fast: 20
+    fast: 30
     normal: 40
 ```
 
@@ -78,10 +78,10 @@ thresholds:
     fast: 10
     normal: 20
   medium:
-    fast: 15
+    fast: 18
     normal: 30
   hard:
-    fast: 20
+    fast: 30
     normal: 40
 
 platforms:
