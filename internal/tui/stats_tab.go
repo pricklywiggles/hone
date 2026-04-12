@@ -174,8 +174,7 @@ func (m *StatsTabModel) syncViewport() {
 	if vpH < 1 {
 		vpH = 1
 	}
-	// Width() includes borders(2) + padding(4) + scrollbar reserve(2)
-	vpW := cardsWidth - 8
+	vpW := cardsWidth - 8 // borders(2) + padding(4) + scrollbar(2)
 	if vpW < 1 {
 		vpW = 1
 	}
@@ -195,7 +194,7 @@ func (m StatsTabModel) View() tea.View {
 
 	fixedHeader, cardsWidth := m.renderFixedHeader()
 
-	contentW := cardsWidth - 6 // Width() includes borders(2) + padding(4)
+	contentW := cardsWidth - 6 // borders(2) + padding(4)
 	inner := m.viewport.View()
 	if m.viewport.TotalLineCount() > m.viewport.VisibleLineCount() {
 		inner = m.composeScrollbar(inner, contentW)
@@ -215,7 +214,7 @@ func (m StatsTabModel) composeScrollbar(content string, contentW int) string {
 	lines := strings.Split(content, "\n")
 	sb := m.renderScrollbar()
 	sbLines := strings.Split(sb, "\n")
-	vpW := contentW - 2 // reserve space + scrollbar char
+	vpW := contentW - 2
 	var b strings.Builder
 	for i, line := range lines {
 		pad := vpW - lipgloss.Width(line)
