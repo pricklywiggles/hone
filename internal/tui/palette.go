@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 var (
 	colorAccent   = lipgloss.Color("#7C8EF2") // soft blue-purple — headers, borders, primary accent

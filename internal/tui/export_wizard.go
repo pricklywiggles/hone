@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/backup"
 	"github.com/pricklywiggles/hone/internal/store"
@@ -77,7 +77,7 @@ func NewExportWizardModel(db *sqlx.DB) ExportWizardModel {
 	ti := textinput.New()
 	ti.Placeholder = "output.json"
 	ti.CharLimit = 200
-	ti.Width = 50
+	ti.SetWidth(50)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
@@ -106,7 +106,7 @@ func (m ExportWizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.playlistList.SetSize(msg.Width-4, msg.Height-6)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
@@ -213,7 +213,7 @@ func (m ExportWizardModel) updateChoosePlaylist(msg tea.Msg) (tea.Model, tea.Cmd
 		m.playlistList.SetSize(m.width-4, m.height-6)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "enter" {
 			i, ok := m.playlistList.SelectedItem().(wizardItem)
 			if !ok {
@@ -336,40 +336,40 @@ func (m ExportWizardModel) runExport() tea.Cmd {
 
 // ── view ────────────────────────────────────────────────────────────────────
 
-func (m ExportWizardModel) View() string {
+func (m ExportWizardModel) View() tea.View {
 	switch m.state {
 	case ewChooseType:
-		return m.typeList.View()
+		return tea.NewView(m.typeList.View())
 
 	case ewChoosePlaylist:
 		if len(m.playlistList.Items()) == 0 {
-			return "\n  " + m.spinner.View() + " Loading playlists…\n"
+			return tea.NewView("\n  " + m.spinner.View() + " Loading playlists…\n")
 		}
-		return m.playlistList.View()
+		return tea.NewView(m.playlistList.View())
 
 	case ewChooseDest:
-		return m.destList.View()
+		return tea.NewView(m.destList.View())
 
 	case ewInputPath:
-		return "\n  " +
+		return tea.NewView("\n  " +
 			lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render("Save to") +
 			"\n\n  " + m.pathInput.View() + "\n\n  " +
-			m.help.View(wizardInputKeyMap{})
+			m.help.View(wizardInputKeyMap{}))
 
 	case ewRunning:
-		return "\n  " + m.spinner.View() + " Exporting…\n"
+		return tea.NewView("\n  " + m.spinner.View() + " Exporting…\n")
 
 	case ewDone:
 		if m.errMsg != "" {
-			return "\n  " + lipgloss.NewStyle().Foreground(colorDanger).Render("Error: "+m.errMsg) +
-				"\n\n  " + statsDimStyle.Render("press any key to exit") + "\n"
+			return tea.NewView("\n  " + lipgloss.NewStyle().Foreground(colorDanger).Render("Error: "+m.errMsg) +
+				"\n\n  " + statsDimStyle.Render("press any key to exit") + "\n")
 		}
 		if m.resultMsg != "" && m.toFile {
-			return "\n  " + lipgloss.NewStyle().Foreground(colorSuccess).Render("✓ "+m.resultMsg) +
-				"\n\n  " + statsDimStyle.Render("press any key to exit") + "\n"
+			return tea.NewView("\n  " + lipgloss.NewStyle().Foreground(colorSuccess).Render("✓ "+m.resultMsg) +
+				"\n\n  " + statsDimStyle.Render("press any key to exit") + "\n")
 		}
 		// Printed to terminal: show content then exit hint.
-		return "\n" + m.resultMsg + "\n  " + statsDimStyle.Render("press any key to exit") + "\n"
+		return tea.NewView("\n" + m.resultMsg + "\n  " + statsDimStyle.Render("press any key to exit") + "\n")
 	}
-	return ""
+	return tea.NewView("")
 }

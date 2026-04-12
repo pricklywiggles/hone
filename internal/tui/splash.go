@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 //go:embed splash.txt
@@ -69,7 +69,7 @@ func (m SplashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Tick(50*time.Millisecond, func(time.Time) tea.Msg { return splashTickMsg{} })
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
@@ -80,14 +80,14 @@ func (m SplashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m SplashModel) View() string {
+func (m SplashModel) View() tea.View {
 	if m.done {
 		return m.inner.View()
 	}
 	return m.renderSplash()
 }
 
-func (m SplashModel) renderSplash() string {
+func (m SplashModel) renderSplash() tea.View {
 	var b strings.Builder
 
 	totalH := len(m.lines) + 3 // art + blank line + hint
@@ -125,7 +125,7 @@ func (m SplashModel) renderSplash() string {
 	b.WriteString(pad)
 	b.WriteString(hint)
 
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 // hslHex converts HSL (h in [0,360], s and l in [0,1]) to a "#rrggbb" string.

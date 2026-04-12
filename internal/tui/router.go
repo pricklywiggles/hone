@@ -1,6 +1,6 @@
 package tui
 
-import tea "github.com/charmbracelet/bubbletea"
+import tea "charm.land/bubbletea/v2"
 
 // PushMsg pushes a new model onto the navigation stack.
 type PushMsg struct{ Model tea.Model }
@@ -54,9 +54,9 @@ func (r Router) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return r, cmd
 }
 
-func (r Router) View() string {
+func (r Router) View() tea.View {
 	if len(r.stack) == 0 {
-		return ""
+		return tea.NewView("")
 	}
 	return r.stack[len(r.stack)-1].View()
 }

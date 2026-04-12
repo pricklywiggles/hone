@@ -3,12 +3,13 @@ package tui
 import (
 	"cmp"
 	"fmt"
+	"image/color"
 	"slices"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/store"
@@ -151,7 +152,7 @@ func (m TopicsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applySort()
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "r":
 			return m, m.loadCmd()
@@ -184,9 +185,9 @@ func (m TopicsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m TopicsTabModel) View() string {
+func (m TopicsTabModel) View() tea.View {
 	if !m.loaded {
-		return "\n  " + statsDimStyle.Render("loading…")
+		return tea.NewView("\n  " + statsDimStyle.Render("loading…"))
 	}
 
 	var b strings.Builder
@@ -203,7 +204,7 @@ func (m TopicsTabModel) View() string {
 	}
 	b.WriteString("  ")
 	b.WriteString(m.help.View(topicsKeyMap{}))
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 // ── Table helpers ─────────────────────────────────────────────────────────────
@@ -258,7 +259,7 @@ func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 	return out
 }
 
-func rateColor(pct int) lipgloss.Color {
+func rateColor(pct int) color.Color {
 	switch {
 	case pct >= 75:
 		return colorSuccess

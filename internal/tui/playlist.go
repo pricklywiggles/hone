@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/store"
@@ -81,7 +81,7 @@ func (m PlaylistSelectModel) Init() tea.Cmd { return nil }
 
 func (m PlaylistSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			m.canceled, m.done = true, true
@@ -102,8 +102,8 @@ func (m PlaylistSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m PlaylistSelectModel) View() string {
-	return "\n" + m.list.View()
+func (m PlaylistSelectModel) View() tea.View {
+	return tea.NewView("\n" + m.list.View())
 }
 
 // ── PlaylistHubModel ─────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ func NewPlaylistHubModel(db *sqlx.DB, profileDir string, activeID *int) Playlist
 	ti := textinput.New()
 	ti.Placeholder = "playlist name"
 	ti.CharLimit = 80
-	ti.Width = 30
+	ti.SetWidth(30)
 
 	l := newPlaylistList(nil, 60, 20)
 	l.Title = "Playlists"
@@ -234,7 +234,7 @@ func (m PlaylistHubModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resizeList()
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.state == hubCreate {
 			return m.updateCreate(msg)
 		}
@@ -301,15 +301,15 @@ func (m PlaylistHubModel) updateList(msg tea.KeyMsg) (PlaylistHubModel, tea.Cmd)
 	return m, cmd
 }
 
-func (m PlaylistHubModel) updateCreate(msg tea.KeyMsg) (PlaylistHubModel, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyCtrlC:
+func (m PlaylistHubModel) updateCreate(msg tea.KeyPressMsg) (PlaylistHubModel, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
 		return m, tea.Quit
-	case tea.KeyEsc:
+	case "esc":
 		m.state = hubList
 		m.resizeList()
 		return m, nil
-	case tea.KeyEnter:
+	case "enter":
 		name := strings.TrimSpace(m.input.Value())
 		if name == "" {
 			return m, nil
@@ -341,7 +341,7 @@ var (
 	hubInputLabelStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 )
 
-func (m PlaylistHubModel) View() string {
+func (m PlaylistHubModel) View() tea.View {
 	if m.state == hubPicker {
 		return m.picker.View()
 	}
@@ -370,5 +370,5 @@ func (m PlaylistHubModel) View() string {
 		b.WriteString("\n")
 	}
 
-	return b.String()
+	return tea.NewView(b.String())
 }

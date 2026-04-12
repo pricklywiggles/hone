@@ -2,12 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/store"
 )
@@ -147,7 +148,7 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "r":
 			m.loading = true
@@ -194,12 +195,12 @@ func (m *StatsTabModel) clampScroll() {
 	}
 }
 
-func (m StatsTabModel) View() string {
+func (m StatsTabModel) View() tea.View {
 	if !m.loaded {
-		return "\n  " + statsDimStyle.Render("loading…")
+		return tea.NewView("\n  " + statsDimStyle.Render("loading…"))
 	}
 	if m.err != nil {
-		return "\n  " + statsFailStyle.Render("error: "+m.err.Error())
+		return tea.NewView("\n  " + statsFailStyle.Render("error: "+m.err.Error()))
 	}
 
 	fixedHeader, cardsWidth := m.renderFixedHeader()
@@ -267,7 +268,7 @@ func (m StatsTabModel) View() string {
 		Width(cardsWidth - 2).
 		Render(innerContent)
 
-	return fixedHeader + lipgloss.NewStyle().MarginLeft(4).Render(box) + "\n" + statsIndent + m.help.View(statsKeyMap{})
+	return tea.NewView(fixedHeader + lipgloss.NewStyle().MarginLeft(4).Render(box) + "\n" + statsIndent + m.help.View(statsKeyMap{}))
 }
 
 func (m StatsTabModel) renderFixedHeader() (string, int) {
@@ -403,7 +404,7 @@ func (m StatsTabModel) renderMetricCards() (string, int) {
 	// Height must be uniform so JoinHorizontal doesn't pad outside the border.
 	cardW := 18
 	cardH := 3
-	card := func(borderColor lipgloss.Color) lipgloss.Style {
+	card := func(borderColor color.Color) lipgloss.Style {
 		return statsCardBase.
 			Width(cardW).
 			Height(cardH).
@@ -480,7 +481,7 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 
 type barSegment struct {
 	value int
-	color lipgloss.Color
+	color color.Color
 }
 
 // renderSegmentedBar draws a single bar with multiple colored segments.
@@ -507,11 +508,11 @@ func renderSegmentedBar(total, width int, segments ...barSegment) string {
 	return b.String()
 }
 
-func renderLegendDot(color lipgloss.Color) string {
-	return lipgloss.NewStyle().Background(color).Render("  ")
+func renderLegendDot(c color.Color) string {
+	return lipgloss.NewStyle().Background(c).Render("  ")
 }
 
-func renderBar(pct float64, width int, color lipgloss.Color) string {
+func renderBar(pct float64, width int, c color.Color) string {
 	if pct < 0 {
 		pct = 0
 	}
@@ -524,16 +525,16 @@ func renderBar(pct float64, width int, color lipgloss.Color) string {
 	}
 	empty := width - filled
 
-	filledStyle := lipgloss.NewStyle().Background(color)
+	filledStyle := lipgloss.NewStyle().Background(c)
 	emptyStyle := lipgloss.NewStyle().Background(barEmptyColor)
 
 	return filledStyle.Render(strings.Repeat(" ", filled)) +
 		emptyStyle.Render(strings.Repeat(" ", empty))
 }
 
-func renderLabeledBar(label string, value, total int, color lipgloss.Color, width int) string {
+func renderLabeledBar(label string, value, total int, c color.Color, width int) string {
 	pct := float64(value) / safeDiv(total)
-	bar := renderBar(pct, width, color)
+	bar := renderBar(pct, width, c)
 	suffix := statsDimStyle.Render(fmt.Sprintf("  %d / %d", value, total))
 	return fmt.Sprintf(statsIndent+"%s  %s%s", label, bar, suffix)
 }
@@ -545,7 +546,7 @@ func safeDiv(n int) float64 {
 	return float64(n)
 }
 
-func diffColor(d string) lipgloss.Color {
+func diffColor(d string) color.Color {
 	switch d {
 	case "easy":
 		return colorSuccess
