@@ -112,6 +112,18 @@ func TestRoundTrip(t *testing.T) {
 		t.Errorf("playlists: got %d, want 1", playlistCount)
 	}
 
+	// Verify playlist created_at survived the round-trip.
+	var srcCreatedAt, dstCreatedAt string
+	if err := srcDB.QueryRow(`SELECT created_at FROM playlists WHERE name = 'Favorites'`).Scan(&srcCreatedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := dstDB.QueryRow(`SELECT created_at FROM playlists WHERE name = 'Favorites'`).Scan(&dstCreatedAt); err != nil {
+		t.Fatal(err)
+	}
+	if srcCreatedAt != dstCreatedAt {
+		t.Errorf("playlist created_at: got %q, want %q", dstCreatedAt, srcCreatedAt)
+	}
+
 	var ppCount int
 	if err := dstDB.QueryRow(`SELECT COUNT(*) FROM playlist_problems`).Scan(&ppCount); err != nil {
 		t.Fatal(err)

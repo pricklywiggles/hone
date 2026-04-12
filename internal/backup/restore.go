@@ -66,7 +66,7 @@ func RestoreFromBackup(db *sqlx.DB, data BackupData) error {
 
 	playlistIDs := make(map[string]int64, len(data.Playlists))
 	for _, pl := range data.Playlists {
-		res, err := tx.Exec(`INSERT INTO playlists (name) VALUES (?)`, pl.Name)
+		res, err := tx.Exec(`INSERT INTO playlists (name, created_at) VALUES (?, ?)`, pl.Name, pl.CreatedAt)
 		if err != nil {
 			return fmt.Errorf("insert playlist %q: %w", pl.Name, err)
 		}

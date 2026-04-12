@@ -36,8 +36,9 @@ type ProblemBackup struct {
 }
 
 type PlaylistBackup struct {
-	Name     string   `json:"name"`
-	Problems []string `json:"problems"` // "platform/slug"
+	Name      string   `json:"name"`
+	CreatedAt string   `json:"created_at"`
+	Problems  []string `json:"problems"` // "platform/slug"
 }
 
 type AttemptBackup struct {
@@ -239,13 +240,14 @@ func loadProblemBackups(db *sqlx.DB) ([]ProblemBackup, error) {
 
 func loadPlaylistBackups(db *sqlx.DB) ([]PlaylistBackup, error) {
 	type row struct {
-		Name     string `db:"name"`
-		Platform string `db:"platform"`
-		Slug     string `db:"slug"`
+		Name      string `db:"name"`
+		CreatedAt string `db:"created_at"`
+		Platform  string `db:"platform"`
+		Slug      string `db:"slug"`
 	}
 	var rows []row
 	err := db.Select(&rows, `
-		SELECT pl.name, p.platform, p.slug
+		SELECT pl.name, pl.created_at, p.platform, p.slug
 		FROM playlists pl
 		JOIN playlist_problems pp ON pp.playlist_id = pl.id
 		JOIN problems p ON p.id = pp.problem_id
@@ -257,17 +259,18 @@ func loadPlaylistBackups(db *sqlx.DB) ([]PlaylistBackup, error) {
 	var out []PlaylistBackup
 	for _, r := range rows {
 		if len(out) == 0 || out[len(out)-1].Name != r.Name {
-			out = append(out, PlaylistBackup{Name: r.Name})
+			out = append(out, PlaylistBackup{Name: r.Name, CreatedAt: r.CreatedAt})
 		}
 		out[len(out)-1].Problems = append(out[len(out)-1].Problems, r.Platform+"/"+r.Slug)
 	}
 
 	// Include empty playlists too.
 	type plRow struct {
-		Name string `db:"name"`
+		Name      string `db:"name"`
+		CreatedAt string `db:"created_at"`
 	}
 	var allPl []plRow
-	if err := db.Select(&allPl, `SELECT name FROM playlists ORDER BY name`); err != nil {
+	if err := db.Select(&allPl, `SELECT name, created_at FROM playlists ORDER BY name`); err != nil {
 		return nil, err
 	}
 	existing := make(map[string]bool, len(out))
@@ -276,7 +279,7 @@ func loadPlaylistBackups(db *sqlx.DB) ([]PlaylistBackup, error) {
 	}
 	for _, pl := range allPl {
 		if !existing[pl.Name] {
-			out = append(out, PlaylistBackup{Name: pl.Name, Problems: []string{}})
+			out = append(out, PlaylistBackup{Name: pl.Name, CreatedAt: pl.CreatedAt, Problems: []string{}})
 		}
 	}
 

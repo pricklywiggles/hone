@@ -441,11 +441,21 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 		barSegment{value: attempted, color: barAttemptColor},
 	))
 
-	summary := fmt.Sprintf("  %d/%d/%d", ps.Mastered, attempted, remaining)
+	left := fmt.Sprintf("  %d mastered / %d in progress / %d unseen", ps.Mastered, attempted, remaining)
+	right := ""
 	if ps.DueToday > 0 {
-		summary += fmt.Sprintf("  %d due", ps.DueToday)
+		right = fmt.Sprintf("%d due", ps.DueToday)
 	}
-	inner.WriteString(statsDimStyle.Render(summary))
+	renderedLeft := statsDimStyle.Render(left)
+	rightPlain := right
+	if right != "" {
+		right = lipgloss.NewStyle().Foreground(colorWarning).Render(right)
+	}
+	pad := barW - lipgloss.Width(renderedLeft) - len(rightPlain) + 2
+	if pad < 1 {
+		pad = 1
+	}
+	inner.WriteString(renderedLeft + strings.Repeat(" ", pad) + right)
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
