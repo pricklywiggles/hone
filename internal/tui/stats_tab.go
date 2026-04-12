@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
@@ -68,7 +69,8 @@ type StatsTabModel struct {
 	recent        []store.RecentAttempt
 	practiceStats *store.PlaylistStats
 	height        int
-	scrollOffset  int
+	viewport      viewport.Model
+	cardsWidth    int
 	db            *sqlx.DB
 	filter        store.PracticeFilter
 	help          help.Model
@@ -80,6 +82,9 @@ func NewStatsTabModel(db *sqlx.DB, filter store.PracticeFilter, height int) Stat
 
 func (m StatsTabModel) withHeight(h int) StatsTabModel {
 	m.height = h
+	if m.loaded {
+		m.syncViewport()
+	}
 	return m
 }
 
@@ -140,7 +145,7 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loaded = true
 		m.loading = false
 		m.err = nil
-		m.scrollOffset = 0
+		m.syncViewport()
 		return m, nil
 
 	case statsErrMsg:
@@ -149,50 +154,35 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "r":
+		if msg.String() == "r" {
 			m.loading = true
 			return m, m.loadCmd()
-		case "j", "down":
-			m.scrollOffset++
-		case "k", "up":
-			m.scrollOffset--
-		case "pgdown", "ctrl+d":
-			page := m.height - 12
-			if page < 1 {
-				page = 1
-			}
-			m.scrollOffset += page
-		case "pgup", "ctrl+u":
-			page := m.height - 12
-			if page < 1 {
-				page = 1
-			}
-			m.scrollOffset -= page
-		}
-		if m.scrollOffset < 0 {
-			m.scrollOffset = 0
-		}
-		if m.loaded {
-			m.clampScroll()
 		}
 	}
-	return m, nil
+
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
-func (m *StatsTabModel) clampScroll() {
-	scrollContent := m.renderScrollableContent()
-	lines := strings.Split(scrollContent, "\n")
-	header, _ := m.renderFixedHeader()
+func (m *StatsTabModel) syncViewport() {
+	header, cardsWidth := m.renderFixedHeader()
+	m.cardsWidth = cardsWidth
 	headerH := lipgloss.Height(header)
-	viewportH := m.height - headerH - 3
-	if viewportH < 1 {
-		viewportH = 1
+	// 3 = box borders (2) + help line (1)
+	vpH := m.height - headerH - 3
+	if vpH < 1 {
+		vpH = 1
 	}
-	scrollMax := max(len(lines)-viewportH, 0)
-	if m.scrollOffset > scrollMax {
-		m.scrollOffset = scrollMax
+	// Content width: cardsWidth minus box borders (2) and box padding (2*2)
+	vpW := cardsWidth - 6
+	if vpW < 1 {
+		vpW = 1
 	}
+	m.viewport.SetHeight(vpH)
+	m.viewport.SetWidth(vpW)
+	m.viewport.SetContent(m.renderScrollableContent())
+	m.viewport.GotoTop()
 }
 
 func (m StatsTabModel) View() tea.View {
@@ -204,69 +194,13 @@ func (m StatsTabModel) View() tea.View {
 	}
 
 	fixedHeader, cardsWidth := m.renderFixedHeader()
-	scrollContent := m.renderScrollableContent()
-
-	headerH := lipgloss.Height(fixedHeader)
-	viewportH := m.height - headerH - 3
-	if viewportH < 1 {
-		viewportH = 1
-	}
-
-	lines := strings.Split(scrollContent, "\n")
-	scrollMax := max(len(lines)-viewportH, 0)
-	offset := max(0, min(m.scrollOffset, scrollMax))
-
-	end := offset + viewportH
-	if end > len(lines) {
-		end = len(lines)
-	}
-	visible := lines[offset:end]
-
-	// Pad to fill viewport height
-	for len(visible) < viewportH {
-		visible = append(visible, "")
-	}
-
-	// Scrollbar: only show when content overflows
-	showScrollbar := scrollMax > 0
-	if showScrollbar {
-		totalLines := len(lines)
-		thumbSize := viewportH * viewportH / totalLines
-		if thumbSize < 1 {
-			thumbSize = 1
-		}
-		thumbPos := 0
-		if scrollMax > 0 {
-			thumbPos = offset * (viewportH - thumbSize) / scrollMax
-		}
-
-		track := lipgloss.NewStyle().Foreground(colorDimBg).Render("│")
-		thumb := lipgloss.NewStyle().Foreground(colorDim).Render("█")
-
-		// Content width inside the box (box width minus padding 2*2 minus scrollbar gap)
-		contentW := cardsWidth - 2 - 4 - 2
-		for i, line := range visible {
-			lineW := lipgloss.Width(line)
-			gap := contentW - lineW
-			if gap < 0 {
-				gap = 0
-			}
-			indicator := track
-			if i >= thumbPos && i < thumbPos+thumbSize {
-				indicator = thumb
-			}
-			visible[i] = line + strings.Repeat(" ", gap) + " " + indicator
-		}
-	}
-
-	innerContent := strings.Join(visible, "\n")
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorDimBg).
 		Padding(0, 2).
 		Width(cardsWidth - 2).
-		Render(innerContent)
+		Render(m.viewport.View())
 
 	return tea.NewView(fixedHeader + lipgloss.NewStyle().MarginLeft(4).Render(box) + "\n" + statsIndent + m.help.View(statsKeyMap{}))
 }
