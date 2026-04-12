@@ -174,8 +174,8 @@ func (m *StatsTabModel) syncViewport() {
 	if vpH < 1 {
 		vpH = 1
 	}
-	// Content width: cardsWidth minus box padding (2*2)
-	vpW := cardsWidth - 4
+	// Width() includes borders(2) + padding(4) + scrollbar reserve(2)
+	vpW := cardsWidth - 8
 	if vpW < 1 {
 		vpW = 1
 	}
@@ -195,14 +195,69 @@ func (m StatsTabModel) View() tea.View {
 
 	fixedHeader, cardsWidth := m.renderFixedHeader()
 
+	contentW := cardsWidth - 6 // Width() includes borders(2) + padding(4)
+	inner := m.viewport.View()
+	if m.viewport.TotalLineCount() > m.viewport.VisibleLineCount() {
+		inner = m.composeScrollbar(inner, contentW)
+	}
+
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorDimBg).
 		Padding(0, 2).
 		Width(cardsWidth).
-		Render(m.viewport.View())
+		Render(inner)
 
 	return tea.NewView(fixedHeader + lipgloss.NewStyle().MarginLeft(4).Render(box) + "\n" + statsIndent + m.help.View(statsKeyMap{}))
+}
+
+func (m StatsTabModel) composeScrollbar(content string, contentW int) string {
+	lines := strings.Split(content, "\n")
+	sb := m.renderScrollbar()
+	sbLines := strings.Split(sb, "\n")
+	vpW := contentW - 2 // reserve space + scrollbar char
+	var b strings.Builder
+	for i, line := range lines {
+		pad := vpW - lipgloss.Width(line)
+		if pad > 0 {
+			line += strings.Repeat(" ", pad)
+		}
+		if i < len(sbLines) {
+			line += " " + sbLines[i]
+		}
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(line)
+	}
+	return b.String()
+}
+
+func (m StatsTabModel) renderScrollbar() string {
+	vpH := m.viewport.Height()
+	totalLines := m.viewport.TotalLineCount()
+	thumbSize := max(1, vpH*vpH/totalLines)
+	scrollMax := totalLines - vpH
+	thumbPos := 0
+	if scrollMax > 0 {
+		thumbPos = m.viewport.YOffset() * (vpH - thumbSize) / scrollMax
+	}
+
+	track := lipgloss.NewStyle().Foreground(colorDimBg)
+	thumb := lipgloss.NewStyle().Foreground(colorDim)
+
+	var b strings.Builder
+	for i := range vpH {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		if i >= thumbPos && i < thumbPos+thumbSize {
+			b.WriteString(thumb.Render("█"))
+		} else {
+			b.WriteString(track.Render("│"))
+		}
+	}
+	return b.String()
 }
 
 func (m StatsTabModel) renderFixedHeader() (string, int) {
@@ -329,7 +384,6 @@ func (m StatsTabModel) renderScrollableContent() string {
 }
 
 func (m StatsTabModel) renderMetricCards() (string, int) {
-	// Width sets content+padding width; borders add 2 more columns.
 	// Height must be uniform so JoinHorizontal doesn't pad outside the border.
 	cardW := 18
 	cardH := 3
@@ -394,7 +448,6 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 	}
 	inner.WriteString(statsDimStyle.Render(summary))
 
-	// Width includes padding but not borders; subtract 2 for left+right border.
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorAccent).
@@ -438,40 +491,6 @@ func renderSegmentedBar(total, width int, segments ...barSegment) string {
 
 func renderLegendDot(c color.Color) string {
 	return lipgloss.NewStyle().Background(c).Render("  ")
-}
-
-func renderBar(pct float64, width int, c color.Color) string {
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 1 {
-		pct = 1
-	}
-	filled := int(pct * float64(width))
-	if filled > width {
-		filled = width
-	}
-	empty := width - filled
-
-	filledStyle := lipgloss.NewStyle().Background(c)
-	emptyStyle := lipgloss.NewStyle().Background(barEmptyColor)
-
-	return filledStyle.Render(strings.Repeat(" ", filled)) +
-		emptyStyle.Render(strings.Repeat(" ", empty))
-}
-
-func renderLabeledBar(label string, value, total int, c color.Color, width int) string {
-	pct := float64(value) / safeDiv(total)
-	bar := renderBar(pct, width, c)
-	suffix := statsDimStyle.Render(fmt.Sprintf("  %d / %d", value, total))
-	return fmt.Sprintf(statsIndent+"%s  %s%s", label, bar, suffix)
-}
-
-func safeDiv(n int) float64 {
-	if n == 0 {
-		return 1
-	}
-	return float64(n)
 }
 
 func diffColor(d string) color.Color {

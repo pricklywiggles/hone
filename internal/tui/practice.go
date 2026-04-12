@@ -606,7 +606,7 @@ func (m PracticeModel) viewStart() string {
 	)
 
 	content := lipgloss.JoinVertical(lipgloss.Center, lines...)
-	card := prCardBase.BorderForeground(borderColor).Render(content)
+	card := prCardBase.Align(lipgloss.Center).BorderForeground(borderColor).Render(content)
 
 	if m.width == 0 {
 		return "\n" + card
@@ -669,7 +669,7 @@ func (m PracticeModel) viewAllCaughtUp() string {
 		starLine,
 	)
 
-	card := prCardBase.BorderForeground(borderColor).Render(content)
+	card := prCardBase.Align(lipgloss.Center).BorderForeground(borderColor).Render(content)
 	if m.width == 0 {
 		return "\n" + card
 	}
