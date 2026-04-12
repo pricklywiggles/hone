@@ -22,7 +22,7 @@ To reset the database: `rm ~/.local/share/hone/data.db` (recreated on next run).
 - **modernc.org/sqlite** (no CGO) + **sqlx** — database
 - **goose/v3** with `//go:embed` — migrations bundled in binary
 - **cobra** / **viper** — CLI and config
-- **bubbletea** / **bubbles** / **lipgloss** / **huh** — TUI
+- **bubbletea** / **bubbles** / **lipgloss** (all v2, import path `charm.land/*/v2`) — TUI
 - **go-rod/rod** — browser automation (headful for practice, headless for scraping)
 
 ---
@@ -35,7 +35,7 @@ You are building a Go CLI application called hone for macOS that helps users pra
 
 - **Cobra** — command structure
 - **Viper** — configuration, XDG-compliant paths
-- **Bubble Tea** with **bubbles/lipgloss/huh** — TUI
+- **Bubble Tea** with **bubbles/lipgloss** (v2, `charm.land` import path) — TUI
 - **SQLite** via `modernc.org/sqlite` + `sqlx` — data storage (single file, no CGO)
 - **Rod** (`go-rod/rod`) — browser automation (headful for practice, headless for scraping)
 - **goose** or embedded SQL — schema migrations
@@ -145,7 +145,7 @@ When all due problems have been completed, the session enters free practice. Suc
 
 - **Platform registry**: Each platform (LeetCode, NeetCode, GeeksForGeeks) is a self-contained file in `internal/platform/` implementing the `Platform` interface. Platforms self-register via `init()`. Scraping selectors, monitor selectors, URL parsing, and wait strategies are all encapsulated per platform. Adding a new platform means creating one file — see `docs/dev/platforms.md`.
 - **Practice sessions**: launches a visible (headful) Chrome window. Monitors the DOM for submission result indicators via the platform's `DetectResult()` method. Sends results back to the TUI via Go channels.
-- **Scraping**: runs headless. The `add` command parses a pasted URL to identify the platform and extract the slug, then navigates to the page to scrape title, topics, difficulty, and other metadata. The scraper is a thin orchestrator; platform-specific extraction is in each platform file.
+- **Scraping**: runs headless. The `import` command parses a pasted URL to identify the platform and extract the slug, then navigates to the page to scrape title, topics, difficulty, and other metadata. The scraper is a thin orchestrator; platform-specific extraction is in each platform file.
 - **External Chrome launch**: The scraper launches Chrome via `exec.Command` (not Rod's `launcher.New()`) because Rod's launcher uses `--use-mock-keychain` and other flags that prevent Chrome from accessing the macOS Keychain, which is required to decrypt cookies saved during `hone auth`.
 - **Browser reuse**: Batch and import operations share a single `scraper.Browser` instance across all URLs. Launching/killing Chrome per URL causes port exhaustion, profile lock corruption, and panics. Panic-prone Rod calls (`MustConnect`, `MustPage`) are wrapped in `rod.Try()`.
 - **Platform-specific waits**: Platforms that need extra time after page load implement `ExtraWait()`. NeetCode sleeps 3s (client-side auth rendering). GeeksForGeeks sleeps 2s. LeetCode needs no extra wait.
@@ -155,5 +155,5 @@ When all due problems have been completed, the session enters free practice. Suc
 
 - All views use lipgloss for styling and bubbles components where applicable.
 - The statistics view renders tables and per-topic breakdowns.
-- Forms for data entry (adding problems, creating playlists) use the huh library.
+- Alt-screen is enabled via `tea.View{AltScreen: true}` returned from `View()`, not via `tea.WithAltScreen()`. The `altScreenModel` wrapper in `run.go` handles this.
 - Navigation between views is handled within the Bubble Tea program, treating the stats dashboard as the hub.

@@ -37,7 +37,7 @@ hone/
 ```mermaid
 sequenceDiagram
     participant User
-    participant cmd/add
+    participant cmd/import
     participant platform
     participant scraper
     participant store
