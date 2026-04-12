@@ -2,12 +2,14 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/store"
 )
@@ -67,7 +69,8 @@ type StatsTabModel struct {
 	recent        []store.RecentAttempt
 	practiceStats *store.PlaylistStats
 	height        int
-	scrollOffset  int
+	viewport      viewport.Model
+	cardsWidth    int
 	db            *sqlx.DB
 	filter        store.PracticeFilter
 	help          help.Model
@@ -79,6 +82,9 @@ func NewStatsTabModel(db *sqlx.DB, filter store.PracticeFilter, height int) Stat
 
 func (m StatsTabModel) withHeight(h int) StatsTabModel {
 	m.height = h
+	if m.loaded {
+		m.syncViewport()
+	}
 	return m
 }
 
@@ -139,7 +145,7 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loaded = true
 		m.loading = false
 		m.err = nil
-		m.scrollOffset = 0
+		m.syncViewport()
 		return m, nil
 
 	case statsErrMsg:
@@ -147,127 +153,110 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		return m, nil
 
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "r":
+	case tea.KeyPressMsg:
+		if msg.String() == "r" {
 			m.loading = true
 			return m, m.loadCmd()
-		case "j", "down":
-			m.scrollOffset++
-		case "k", "up":
-			m.scrollOffset--
-		case "pgdown", "ctrl+d":
-			page := m.height - 12
-			if page < 1 {
-				page = 1
-			}
-			m.scrollOffset += page
-		case "pgup", "ctrl+u":
-			page := m.height - 12
-			if page < 1 {
-				page = 1
-			}
-			m.scrollOffset -= page
-		}
-		if m.scrollOffset < 0 {
-			m.scrollOffset = 0
-		}
-		if m.loaded {
-			m.clampScroll()
 		}
 	}
-	return m, nil
+
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
-func (m *StatsTabModel) clampScroll() {
-	scrollContent := m.renderScrollableContent()
-	lines := strings.Split(scrollContent, "\n")
-	header, _ := m.renderFixedHeader()
+func (m *StatsTabModel) syncViewport() {
+	header, cardsWidth := m.renderFixedHeader()
+	m.cardsWidth = cardsWidth
 	headerH := lipgloss.Height(header)
-	viewportH := m.height - headerH - 3
-	if viewportH < 1 {
-		viewportH = 1
+	// 3 = box borders (2) + help line (1)
+	vpH := m.height - headerH - 3
+	if vpH < 1 {
+		vpH = 1
 	}
-	scrollMax := max(len(lines)-viewportH, 0)
-	if m.scrollOffset > scrollMax {
-		m.scrollOffset = scrollMax
+	vpW := cardsWidth - 8 // borders(2) + padding(4) + scrollbar(2)
+	if vpW < 1 {
+		vpW = 1
 	}
+	m.viewport.SetHeight(vpH)
+	m.viewport.SetWidth(vpW)
+	m.viewport.SetContent(m.renderScrollableContent())
+	m.viewport.GotoTop()
 }
 
-func (m StatsTabModel) View() string {
+func (m StatsTabModel) View() tea.View {
 	if !m.loaded {
-		return "\n  " + statsDimStyle.Render("loading…")
+		return tea.NewView("\n  " + statsDimStyle.Render("loading…"))
 	}
 	if m.err != nil {
-		return "\n  " + statsFailStyle.Render("error: "+m.err.Error())
+		return tea.NewView("\n  " + statsFailStyle.Render("error: "+m.err.Error()))
 	}
 
 	fixedHeader, cardsWidth := m.renderFixedHeader()
-	scrollContent := m.renderScrollableContent()
 
-	headerH := lipgloss.Height(fixedHeader)
-	viewportH := m.height - headerH - 3
-	if viewportH < 1 {
-		viewportH = 1
+	contentW := cardsWidth - 6 // borders(2) + padding(4)
+	inner := m.viewport.View()
+	if m.viewport.TotalLineCount() > m.viewport.VisibleLineCount() {
+		inner = m.composeScrollbar(inner, contentW)
 	}
-
-	lines := strings.Split(scrollContent, "\n")
-	scrollMax := max(len(lines)-viewportH, 0)
-	offset := max(0, min(m.scrollOffset, scrollMax))
-
-	end := offset + viewportH
-	if end > len(lines) {
-		end = len(lines)
-	}
-	visible := lines[offset:end]
-
-	// Pad to fill viewport height
-	for len(visible) < viewportH {
-		visible = append(visible, "")
-	}
-
-	// Scrollbar: only show when content overflows
-	showScrollbar := scrollMax > 0
-	if showScrollbar {
-		totalLines := len(lines)
-		thumbSize := viewportH * viewportH / totalLines
-		if thumbSize < 1 {
-			thumbSize = 1
-		}
-		thumbPos := 0
-		if scrollMax > 0 {
-			thumbPos = offset * (viewportH - thumbSize) / scrollMax
-		}
-
-		track := lipgloss.NewStyle().Foreground(colorDimBg).Render("│")
-		thumb := lipgloss.NewStyle().Foreground(colorDim).Render("█")
-
-		// Content width inside the box (box width minus padding 2*2 minus scrollbar gap)
-		contentW := cardsWidth - 2 - 4 - 2
-		for i, line := range visible {
-			lineW := lipgloss.Width(line)
-			gap := contentW - lineW
-			if gap < 0 {
-				gap = 0
-			}
-			indicator := track
-			if i >= thumbPos && i < thumbPos+thumbSize {
-				indicator = thumb
-			}
-			visible[i] = line + strings.Repeat(" ", gap) + " " + indicator
-		}
-	}
-
-	innerContent := strings.Join(visible, "\n")
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorDimBg).
 		Padding(0, 2).
-		Width(cardsWidth - 2).
-		Render(innerContent)
+		Width(cardsWidth).
+		Render(inner)
 
-	return fixedHeader + lipgloss.NewStyle().MarginLeft(4).Render(box) + "\n" + statsIndent + m.help.View(statsKeyMap{})
+	return tea.NewView(fixedHeader + lipgloss.NewStyle().MarginLeft(4).Render(box) + "\n" + statsIndent + m.help.View(statsKeyMap{}))
+}
+
+func (m StatsTabModel) composeScrollbar(content string, contentW int) string {
+	lines := strings.Split(content, "\n")
+	sb := m.renderScrollbar()
+	sbLines := strings.Split(sb, "\n")
+	vpW := contentW - 2
+	var b strings.Builder
+	for i, line := range lines {
+		pad := vpW - lipgloss.Width(line)
+		if pad > 0 {
+			line += strings.Repeat(" ", pad)
+		}
+		if i < len(sbLines) {
+			line += " " + sbLines[i]
+		}
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(line)
+	}
+	return b.String()
+}
+
+func (m StatsTabModel) renderScrollbar() string {
+	vpH := m.viewport.Height()
+	totalLines := m.viewport.TotalLineCount()
+	thumbSize := max(1, vpH*vpH/totalLines)
+	scrollMax := totalLines - vpH
+	thumbPos := 0
+	if scrollMax > 0 {
+		thumbPos = m.viewport.YOffset() * (vpH - thumbSize) / scrollMax
+	}
+
+	track := lipgloss.NewStyle().Foreground(colorDimBg)
+	thumb := lipgloss.NewStyle().Foreground(colorDim)
+
+	var b strings.Builder
+	for i := range vpH {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		if i >= thumbPos && i < thumbPos+thumbSize {
+			b.WriteString(thumb.Render("█"))
+		} else {
+			b.WriteString(track.Render("│"))
+		}
+	}
+	return b.String()
 }
 
 func (m StatsTabModel) renderFixedHeader() (string, int) {
@@ -394,16 +383,10 @@ func (m StatsTabModel) renderScrollableContent() string {
 }
 
 func (m StatsTabModel) renderMetricCards() (string, int) {
-	masteredPct := 0
-	if m.overview.Total > 0 {
-		masteredPct = m.overview.Mastered * 100 / m.overview.Total
-	}
-
-	// Width sets content+padding width; borders add 2 more columns.
 	// Height must be uniform so JoinHorizontal doesn't pad outside the border.
 	cardW := 18
 	cardH := 3
-	card := func(borderColor lipgloss.Color) lipgloss.Style {
+	card := func(borderColor color.Color) lipgloss.Style {
 		return statsCardBase.
 			Width(cardW).
 			Height(cardH).
@@ -428,10 +411,10 @@ func (m StatsTabModel) renderMetricCards() (string, int) {
 		totalNum + "\n" + statsMetricLabelStyle.Render("problems"),
 	)
 	card4 := card(colorMastered).Render(
-		masteredNum + "\n" + statsMetricLabelStyle.Render(fmt.Sprintf("mastered (%d%%)", masteredPct)),
+		masteredNum + "\n" + statsMetricLabelStyle.Render("mastered"),
 	)
 
-	joined := lipgloss.JoinHorizontal(lipgloss.Top, card1, card2, card3, card4)
+	joined := lipgloss.JoinHorizontal(lipgloss.Top, card1, "  ", card2, "  ", card3, "  ", card4)
 	innerWidth := lipgloss.Width(joined)
 	return lipgloss.NewStyle().MarginLeft(4).Render(joined), innerWidth
 }
@@ -446,8 +429,7 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 		remaining = 0
 	}
 
-	// Width(cardsWidth-2) includes padding(2+2=4), so content area = cardsWidth-2-4.
-	contentW := cardsWidth - 6
+	contentW := cardsWidth - 4
 	barW := contentW - 2
 
 	var inner strings.Builder
@@ -465,12 +447,11 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 	}
 	inner.WriteString(statsDimStyle.Render(summary))
 
-	// Width includes padding but not borders; subtract 2 for left+right border.
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(colorAccent).
 		Padding(1, 2).
-		Width(cardsWidth - 2).
+		Width(cardsWidth).
 		Render(inner.String())
 
 	return "\n" + lipgloss.NewStyle().MarginLeft(4).Render(box)
@@ -480,7 +461,7 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 
 type barSegment struct {
 	value int
-	color lipgloss.Color
+	color color.Color
 }
 
 // renderSegmentedBar draws a single bar with multiple colored segments.
@@ -507,45 +488,11 @@ func renderSegmentedBar(total, width int, segments ...barSegment) string {
 	return b.String()
 }
 
-func renderLegendDot(color lipgloss.Color) string {
-	return lipgloss.NewStyle().Background(color).Render("  ")
+func renderLegendDot(c color.Color) string {
+	return lipgloss.NewStyle().Background(c).Render("  ")
 }
 
-func renderBar(pct float64, width int, color lipgloss.Color) string {
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 1 {
-		pct = 1
-	}
-	filled := int(pct * float64(width))
-	if filled > width {
-		filled = width
-	}
-	empty := width - filled
-
-	filledStyle := lipgloss.NewStyle().Background(color)
-	emptyStyle := lipgloss.NewStyle().Background(barEmptyColor)
-
-	return filledStyle.Render(strings.Repeat(" ", filled)) +
-		emptyStyle.Render(strings.Repeat(" ", empty))
-}
-
-func renderLabeledBar(label string, value, total int, color lipgloss.Color, width int) string {
-	pct := float64(value) / safeDiv(total)
-	bar := renderBar(pct, width, color)
-	suffix := statsDimStyle.Render(fmt.Sprintf("  %d / %d", value, total))
-	return fmt.Sprintf(statsIndent+"%s  %s%s", label, bar, suffix)
-}
-
-func safeDiv(n int) float64 {
-	if n == 0 {
-		return 1
-	}
-	return float64(n)
-}
-
-func diffColor(d string) lipgloss.Color {
+func diffColor(d string) color.Color {
 	switch d {
 	case "easy":
 		return colorSuccess

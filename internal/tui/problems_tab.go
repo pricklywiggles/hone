@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/store"
 )
@@ -69,7 +69,7 @@ func NewProblemsTabModel(db *sqlx.DB, profileDir string, filter store.PracticeFi
 	ti := textinput.New()
 	ti.Placeholder = "filter by title…"
 	ti.CharLimit = 80
-	ti.Width = 40
+	ti.SetWidth(40)
 
 	t := newProblemsTable(nil, tableBodyHeight(height))
 
@@ -126,7 +126,7 @@ func (m ProblemsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loaded = true
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.filtering {
 			return m.updateFilter(msg)
 		}
@@ -188,9 +188,9 @@ func (m ProblemsTabModel) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m ProblemsTabModel) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc, tea.KeyEnter:
+func (m ProblemsTabModel) updateFilter(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "enter":
 		m.filtering = false
 		m.filterInput.Blur()
 		return m, nil
@@ -228,9 +228,9 @@ func (m *ProblemsTabModel) applyFilterAndSort() {
 	m.table.SetRows(buildTableRows(filtered))
 }
 
-func (m ProblemsTabModel) View() string {
+func (m ProblemsTabModel) View() tea.View {
 	if !m.loaded {
-		return "\n  " + statsDimStyle.Render("loading…")
+		return tea.NewView("\n  " + statsDimStyle.Render("loading…"))
 	}
 
 	var b strings.Builder
@@ -261,7 +261,7 @@ func (m ProblemsTabModel) View() string {
 
 	b.WriteString(m.help.View(problemsKeyMap{filtering: m.filtering}))
 
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 // ── Table helpers ─────────────────────────────────────────────────────────────

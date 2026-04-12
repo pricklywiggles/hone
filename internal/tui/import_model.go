@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/importer"
@@ -102,8 +102,8 @@ func NewImportModel(db *sqlx.DB, profileDir string, groups []importer.ImportGrou
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(colorAccent)
 
-	prog := progress.New(progress.WithDefaultGradient())
-	prog.Width = 40
+	prog := progress.New(progress.WithDefaultBlend())
+	prog.SetWidth(40)
 
 	return ImportModel{
 		header:        header,
@@ -128,7 +128,7 @@ func (m ImportModel) Init() tea.Cmd {
 
 func (m ImportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			if m.browser != nil {
 				m.browser.Close()
@@ -163,8 +163,8 @@ func (m ImportModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case progress.FrameMsg:
-		pm, cmd := m.progress.Update(msg)
-		m.progress = pm.(progress.Model)
+		var cmd tea.Cmd
+		m.progress, cmd = m.progress.Update(msg)
 		return m, cmd
 
 	case importResultMsg:
@@ -321,7 +321,7 @@ func (m ImportModel) FailedURLs() []string {
 
 // ── view ──────────────────────────────────────────────────────────────────────
 
-func (m ImportModel) View() string {
+func (m ImportModel) View() tea.View {
 	var b strings.Builder
 
 	b.WriteString("\n  ")
@@ -384,5 +384,5 @@ func (m ImportModel) View() string {
 	}
 
 	b.WriteString("\n")
-	return b.String()
+	return tea.NewView(b.String())
 }

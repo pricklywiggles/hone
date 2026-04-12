@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/platform"
@@ -74,8 +74,8 @@ func NewBatchAddModel(db *sqlx.DB, profileDir string, urls []string) BatchAddMod
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(colorAccent)
 
-	prog := progress.New(progress.WithDefaultGradient())
-	prog.Width = 40
+	prog := progress.New(progress.WithDefaultBlend())
+	prog.SetWidth(40)
 
 	return BatchAddModel{
 		items:      items,
@@ -98,7 +98,7 @@ func (m BatchAddModel) Init() tea.Cmd {
 
 func (m BatchAddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			if m.browser != nil {
@@ -135,8 +135,8 @@ func (m BatchAddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case progress.FrameMsg:
-		pm, cmd := m.progress.Update(msg)
-		m.progress = pm.(progress.Model)
+		var cmd tea.Cmd
+		m.progress, cmd = m.progress.Update(msg)
 		return m, cmd
 
 	case batchResultMsg:
@@ -224,7 +224,7 @@ var (
 	batchDimStyle  = lipgloss.NewStyle().Foreground(colorDim)
 )
 
-func (m BatchAddModel) View() string {
+func (m BatchAddModel) View() tea.View {
 	var b strings.Builder
 	total := len(m.items)
 
@@ -259,5 +259,5 @@ func (m BatchAddModel) View() string {
 	}
 
 	b.WriteString("\n")
-	return b.String()
+	return tea.NewView(b.String())
 }

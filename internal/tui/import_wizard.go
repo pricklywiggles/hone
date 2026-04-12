@@ -6,13 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/charmbracelet/bubbles/filepicker"
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/filepicker"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/backup"
 	"github.com/pricklywiggles/hone/internal/db"
@@ -84,7 +84,7 @@ func NewImportWizardModel(db *sqlx.DB, dataDir, profileDir string) ImportWizardM
 	ti := textinput.New()
 	ti.Placeholder = "https://neetcode.io/problems/…"
 	ti.CharLimit = 300
-	ti.Width = 60
+	ti.SetWidth(60)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
@@ -112,7 +112,7 @@ func (m ImportWizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetSize(msg.Width-4, msg.Height-6)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
@@ -155,7 +155,7 @@ func (m ImportWizardModel) updateChooseType(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fp := filepicker.New()
 			fp.CurrentDirectory, _ = os.Getwd()
 			fp.AutoHeight = false
-			fp.Height = m.height - 8
+			fp.SetHeight(m.height - 8)
 			m.picker = fp
 			return m, m.picker.Init()
 		case "Backup file":
@@ -165,7 +165,7 @@ func (m ImportWizardModel) updateChooseType(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fp.CurrentDirectory, _ = os.Getwd()
 			fp.AllowedTypes = []string{".json"}
 			fp.AutoHeight = false
-			fp.Height = m.height - 8
+			fp.SetHeight(m.height - 8)
 			m.picker = fp
 			return m, m.picker.Init()
 		case "Single URL":
@@ -320,41 +320,41 @@ func (m ImportWizardModel) startBackupRestore(path string) tea.Cmd {
 
 // ── view ────────────────────────────────────────────────────────────────────
 
-func (m ImportWizardModel) View() string {
+func (m ImportWizardModel) View() tea.View {
 	switch m.state {
 	case iwChooseType:
-		return m.list.View()
+		return tea.NewView(m.list.View())
 
 	case iwChooseFile:
 		header := "  Select a file"
 		if m.importType == 1 {
 			header = "  Select a JSON backup file"
 		}
-		return lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render(header) + "\n\n" +
+		return tea.NewView(lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render(header) + "\n\n" +
 			m.picker.View() + "\n\n  " +
-			m.help.View(wizardFileKeyMap{})
+			m.help.View(wizardFileKeyMap{}))
 
 	case iwInputURL:
-		return "\n  " +
+		return tea.NewView("\n  " +
 			lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render("Enter a problem URL") +
 			"\n\n  " + m.urlInput.View() + "\n\n  " +
-			m.help.View(wizardInputKeyMap{})
+			m.help.View(wizardInputKeyMap{}))
 
 	case iwRunning:
 		if m.importModel != nil {
 			return m.importModel.View()
 		}
-		return "\n  " + m.spinner.View() + " Restoring from backup…\n"
+		return tea.NewView("\n  " + m.spinner.View() + " Restoring from backup…\n")
 
 	case iwDone:
 		if m.errMsg != "" {
-			return "\n  " + lipgloss.NewStyle().Foreground(colorDanger).Render("Error: "+m.errMsg) +
-				"\n\n  " + statsDimStyle.Render("press any key to exit") + "\n"
+			return tea.NewView("\n  " + lipgloss.NewStyle().Foreground(colorDanger).Render("Error: "+m.errMsg) +
+				"\n\n  " + statsDimStyle.Render("press any key to exit") + "\n")
 		}
-		return "\n  " + lipgloss.NewStyle().Foreground(colorSuccess).Render("✓ "+m.resultMsg) +
-			"\n\n  " + statsDimStyle.Render("press any key to exit") + "\n"
+		return tea.NewView("\n  " + lipgloss.NewStyle().Foreground(colorSuccess).Render("✓ "+m.resultMsg) +
+			"\n\n  " + statsDimStyle.Render("press any key to exit") + "\n")
 	}
-	return ""
+	return tea.NewView("")
 }
 
 // ── shared wizard helpers ───────────────────────────────────────────────────

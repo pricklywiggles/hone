@@ -3,15 +3,16 @@ package tui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/monitor"
@@ -124,7 +125,7 @@ func NewPracticeModel(
 }
 
 func (m PracticeModel) Init() tea.Cmd {
-	return tea.Batch(tea.WindowSize(), animTickCmd())
+	return tea.Batch(tea.RequestWindowSize, animTickCmd())
 }
 
 func (m PracticeModel) startSession() tea.Cmd {
@@ -141,7 +142,7 @@ func (m PracticeModel) startSession() tea.Cmd {
 
 func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c":
 			m.cancelFn()
@@ -382,8 +383,9 @@ func animTickCmd() tea.Cmd {
 	return tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg { return practiceAnimTickMsg{} })
 }
 
-var gradientColors = []lipgloss.Color{
-	"#7C8EF2", "#56B6C2", "#73D0A0", "#E5C07B", "#E0B464", "#D19A66", "#E06C75", "#8A7FBD",
+var gradientColors = []color.Color{
+	lipgloss.Color("#7C8EF2"), lipgloss.Color("#56B6C2"), lipgloss.Color("#73D0A0"), lipgloss.Color("#E5C07B"),
+	lipgloss.Color("#E0B464"), lipgloss.Color("#D19A66"), lipgloss.Color("#E06C75"), lipgloss.Color("#8A7FBD"),
 }
 
 func waitForResult(ch <-chan monitor.Result) tea.Cmd {
@@ -429,7 +431,7 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			Padding(1, 3).
 			Width(prCardWidth)
-	prDiffColors = map[string]lipgloss.Color{
+	prDiffColors = map[string]color.Color{
 		"easy":   colorSuccess,
 		"medium": colorWarning,
 		"hard":   colorDanger,
@@ -527,18 +529,18 @@ func (m PracticeModel) renderDebugPanel() string {
 	return strings.Join(lines, "\n")
 }
 
-func (m PracticeModel) View() string {
+func (m PracticeModel) View() tea.View {
 	switch m.state {
 	case practiceStart:
-		return m.viewStart()
+		return tea.NewView(m.viewStart())
 	case practiceDone:
-		return m.viewDone()
+		return tea.NewView(m.viewDone())
 	case practiceError:
-		return m.viewError()
+		return tea.NewView(m.viewError())
 	case practiceAllCaughtUp:
-		return m.viewAllCaughtUp()
+		return tea.NewView(m.viewAllCaughtUp())
 	default:
-		return m.viewWaiting()
+		return tea.NewView(m.viewWaiting())
 	}
 }
 
@@ -546,7 +548,7 @@ func (m PracticeModel) viewStart() string {
 	n := len(gradientColors)
 	borderColor := gradientColors[m.animFrame%n]
 
-	starColors := make([]lipgloss.Color, 5)
+	starColors := make([]color.Color, 5)
 	for i := range starColors {
 		starColors[i] = gradientColors[(m.animFrame+i)%n]
 	}
@@ -604,7 +606,7 @@ func (m PracticeModel) viewStart() string {
 	)
 
 	content := lipgloss.JoinVertical(lipgloss.Center, lines...)
-	card := prCardBase.BorderForeground(borderColor).Render(content)
+	card := prCardBase.Align(lipgloss.Center).BorderForeground(borderColor).Render(content)
 
 	if m.width == 0 {
 		return "\n" + card
@@ -617,7 +619,7 @@ func (m PracticeModel) viewAllCaughtUp() string {
 	n := len(gradientColors)
 	borderColor := gradientColors[m.animFrame%n]
 
-	starColors := make([]lipgloss.Color, 5)
+	starColors := make([]color.Color, 5)
 	for i := range starColors {
 		starColors[i] = gradientColors[(m.animFrame+i)%n]
 	}
@@ -667,7 +669,7 @@ func (m PracticeModel) viewAllCaughtUp() string {
 		starLine,
 	)
 
-	card := prCardBase.BorderForeground(borderColor).Render(content)
+	card := prCardBase.Align(lipgloss.Center).BorderForeground(borderColor).Render(content)
 	if m.width == 0 {
 		return "\n" + card
 	}

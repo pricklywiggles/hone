@@ -3,8 +3,8 @@ package tui
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/lipgloss/v2"
+	tea "charm.land/bubbletea/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/store"
@@ -104,7 +104,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = c
 		return m, cmd
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
@@ -217,23 +217,23 @@ func (m *DashboardModel) syncFilter() {
 	}
 }
 
-func (m DashboardModel) View() string {
+func (m DashboardModel) View() tea.View {
 	var b strings.Builder
 	b.WriteString(m.renderTabBar())
 	b.WriteString("\n")
 
 	switch m.active {
 	case tabStats:
-		b.WriteString(m.stats.View())
+		b.WriteString(m.stats.View().Content)
 	case tabProblems:
-		b.WriteString(m.problems.View())
+		b.WriteString(m.problems.View().Content)
 	case tabPlaylists:
-		b.WriteString(m.playlists.View())
+		b.WriteString(m.playlists.View().Content)
 	case tabTopics:
-		b.WriteString(m.topics.View())
+		b.WriteString(m.topics.View().Content)
 	}
 
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 func (m DashboardModel) renderTabBar() string {

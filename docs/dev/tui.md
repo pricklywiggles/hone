@@ -1,6 +1,6 @@
 # TUI Development
 
-hone's TUI is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). This page covers the patterns used throughout `internal/tui/`.
+hone's TUI is built with [Bubble Tea](https://charm.land/bubbletea/v2). This page covers the patterns used throughout `internal/tui/`.
 
 ---
 

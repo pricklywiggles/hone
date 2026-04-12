@@ -2,13 +2,14 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/pricklywiggles/hone/internal/scraper"
@@ -49,7 +50,7 @@ func NewAddModel(db *sqlx.DB, profileDir, initialURL string) AddModel {
 	ti := textinput.New()
 	ti.Placeholder = "https://neetcode.io/problems/…"
 	ti.CharLimit = 300
-	ti.Width = 60
+	ti.SetWidth(60)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
@@ -115,15 +116,15 @@ func (m AddModel) exit() tea.Cmd {
 
 func (m AddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "ctrl+c":
 			return m, tea.Quit
-		case tea.KeyEsc:
+		case "esc":
 			if m.state == stateInput {
 				return m, m.exit()
 			}
-		case tea.KeyEnter:
+		case "enter":
 			if m.state == stateInput && strings.TrimSpace(m.input.Value()) != "" {
 				m.state = stateScraping
 				return m, tea.Batch(m.spinner.Tick, m.doScrape(m.input.Value()))
@@ -177,29 +178,29 @@ var (
 			BorderForeground(colorDanger).
 			Padding(1, 3).
 			Width(52)
-	diffColors = map[string]lipgloss.Color{
+	diffColors = map[string]color.Color{
 		"easy":   colorSuccess,
 		"medium": colorWarning,
 		"hard":   colorDanger,
 	}
 )
 
-func (m AddModel) View() string {
+func (m AddModel) View() tea.View {
 	switch m.state {
 	case stateInput:
-		return fmt.Sprintf(
+		return tea.NewView(fmt.Sprintf(
 			"\n  %s\n\n  %s\n\n  %s",
 			addHeaderStyle.Render("Add Problem"),
 			m.input.View(),
 			m.help.View(addInputKeyMap{}),
-		)
+		))
 
 	case stateScraping:
 		label := m.input.Value()
 		if plat, slug, err := platform.ParseURL(label); err == nil {
 			label = plat + " / " + slug
 		}
-		return fmt.Sprintf("\n  %s Scraping %s…", m.spinner.View(), addLabelStyle.Render(label))
+		return tea.NewView(fmt.Sprintf("\n  %s Scraping %s…", m.spinner.View(), addLabelStyle.Render(label)))
 
 	case stateDone:
 		r := m.result
@@ -215,7 +216,7 @@ func (m AddModel) View() string {
 			diffStyle.Render(r.meta.Difficulty)+"  "+addLabelStyle.Render(r.plat),
 			topicsStr,
 		)
-		return "\n" + addCardStyle.Render(content) + "\n\n  " + m.help.View(addDoneKeyMap{})
+		return tea.NewView("\n" + addCardStyle.Render(content) + "\n\n  " + m.help.View(addDoneKeyMap{}))
 
 	case stateErr:
 		content := lipgloss.JoinVertical(lipgloss.Left,
@@ -223,8 +224,8 @@ func (m AddModel) View() string {
 			"",
 			m.err.Error(),
 		)
-		return "\n" + addErrCardStyle.Render(content) + "\n\n  " + m.help.View(addDoneKeyMap{})
+		return tea.NewView("\n" + addErrCardStyle.Render(content) + "\n\n  " + m.help.View(addDoneKeyMap{}))
 	}
 
-	return ""
+	return tea.NewView("")
 }

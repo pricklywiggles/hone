@@ -5,10 +5,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/store"
 )
@@ -58,7 +58,7 @@ func NewPlaylistPickerModel(db *sqlx.DB, profileDir string, playlistID int, play
 	ti := textinput.New()
 	ti.Placeholder = "search problems…"
 	ti.CharLimit = 80
-	ti.Width = 40
+	ti.SetWidth(40)
 
 	return PlaylistPickerModel{
 		db:           db,
@@ -106,7 +106,7 @@ func (m PlaylistPickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case problemAddedMsg:
 		return m, m.loadCmd()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
 
@@ -115,7 +115,7 @@ func (m PlaylistPickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m PlaylistPickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m PlaylistPickerModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
 	}
@@ -125,7 +125,7 @@ func (m PlaylistPickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m.handleNormalKey(msg)
 }
 
-func (m PlaylistPickerModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m PlaylistPickerModel) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return m, func() tea.Msg { return playlistPickerCancelMsg{} }
@@ -164,16 +164,16 @@ func (m PlaylistPickerModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd
 	return m, nil
 }
 
-func (m PlaylistPickerModel) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (m PlaylistPickerModel) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		m.filtering = false
 		m.filterInput.SetValue("")
 		m.filterInput.Blur()
 		m.rebuildVisible()
 		m.cursor = 0
 		return m, nil
-	case tea.KeyEnter:
+	case "enter":
 		m.filtering = false
 		m.filterInput.Blur()
 		return m, nil
@@ -216,7 +216,7 @@ func (m *PlaylistPickerModel) rebuildVisible() {
 	}
 }
 
-func (m PlaylistPickerModel) View() string {
+func (m PlaylistPickerModel) View() tea.View {
 	var b strings.Builder
 
 	b.WriteString("\n  ")
@@ -285,5 +285,5 @@ func (m PlaylistPickerModel) View() string {
 		pickerCheckedStyle.Render(fmt.Sprintf("%d selected", selectedCount)),
 	))
 
-	return b.String()
+	return tea.NewView(b.String())
 }
