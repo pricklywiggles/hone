@@ -361,7 +361,7 @@ func (m StatsTabModel) renderMetricCards() (string, int) {
 		masteredNum + "\n" + statsMetricLabelStyle.Render("mastered"),
 	)
 
-	joined := lipgloss.JoinHorizontal(lipgloss.Top, card1, " ", card2, " ", card3, " ", card4)
+	joined := lipgloss.JoinHorizontal(lipgloss.Top, card1, "  ", card2, "  ", card3, "  ", card4)
 	innerWidth := lipgloss.Width(joined)
 	return lipgloss.NewStyle().MarginLeft(4).Render(joined), innerWidth
 }
