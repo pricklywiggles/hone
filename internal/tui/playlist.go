@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
-	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/store"
 )
 
@@ -172,7 +171,7 @@ func loadPlaylists(db *sqlx.DB) tea.Cmd {
 
 func activatePlaylist(db *sqlx.DB, id int) tea.Cmd {
 	return func() tea.Msg {
-		if err := config.SetActivePlaylist(id); err != nil {
+		if err := store.SetActivePlaylist(db, id); err != nil {
 			return playlistHubErrMsg{err}
 		}
 		return loadPlaylists(db)()
@@ -181,7 +180,7 @@ func activatePlaylist(db *sqlx.DB, id int) tea.Cmd {
 
 func clearActivePlaylist(db *sqlx.DB) tea.Cmd {
 	return func() tea.Msg {
-		if err := config.ClearActivePlaylist(); err != nil {
+		if err := store.ClearActivePlaylist(db); err != nil {
 			return playlistHubErrMsg{err}
 		}
 		return loadPlaylists(db)()
@@ -205,7 +204,7 @@ func (m PlaylistHubModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case playlistsLoadedMsg:
 		m.playlists = msg.playlists
-		m.activeID = config.ActivePlaylistID()
+		m.activeID, _ = store.ActivePlaylistID(m.db)
 		m.list.SetItems(makePlaylistItems(m.playlists, m.activeID))
 		if m.activeID == nil {
 			m.list.Title = "Playlists · none active"

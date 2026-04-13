@@ -18,9 +18,9 @@ var practiceCmd = &cobra.Command{
 	Use:   "practice",
 	Short: "Pick and launch the next problem",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		filter := store.PracticeFilter{
-			PlaylistID: config.ActivePlaylistID(),
-			TopicID:    config.ActiveTopicID(),
+		filter, err := store.ActiveFilter(appDB)
+		if err != nil {
+			return err
 		}
 		queue, err := store.ListPickQueue(appDB, filter)
 		if err != nil {

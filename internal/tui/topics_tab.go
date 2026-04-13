@@ -11,7 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/jmoiron/sqlx"
-	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/store"
 )
 
@@ -60,7 +59,8 @@ type TopicsTabModel struct {
 
 func NewTopicsTabModel(db *sqlx.DB, height int) TopicsTabModel {
 	t := newTopicsTable(nil, topicsBodyHeight(height))
-	return TopicsTabModel{table: t, db: db, height: height, activeTopicID: config.ActiveTopicID(), help: newHelpModel()}
+	activeTopicID, _ := store.ActiveTopicID(db)
+	return TopicsTabModel{table: t, db: db, height: height, activeTopicID: activeTopicID, help: newHelpModel()}
 }
 
 func (m *TopicsTabModel) applySort() {
@@ -124,7 +124,7 @@ func (m TopicsTabModel) loadCmd() tea.Cmd {
 }
 
 func (m TopicsTabModel) activated() (TopicsTabModel, tea.Cmd) {
-	m.activeTopicID = config.ActiveTopicID()
+	m.activeTopicID, _ = store.ActiveTopicID(m.db)
 	return m, m.loadCmd()
 }
 
@@ -165,15 +165,17 @@ func (m TopicsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				topic := m.sorted[idx]
 				if m.activeTopicID != nil && *m.activeTopicID == topic.ID {
 					m.activeTopicID = nil
+					db := m.db
 					return m, func() tea.Msg {
-						_ = config.ClearActiveTopic()
+						_ = store.ClearActiveTopic(db)
 						return topicClearedMsg{}
 					}
 				}
 				id := topic.ID
 				m.activeTopicID = &id
+				db := m.db
 				return m, func() tea.Msg {
-					_ = config.SetActiveTopic(topic.ID)
+					_ = store.SetActiveTopic(db, topic.ID)
 					return topicSetMsg{name: topic.Name}
 				}
 			}

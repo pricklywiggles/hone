@@ -45,7 +45,7 @@ You are building a Go CLI application called hone for macOS that helps users pra
 
 - Commands are defined with Cobra. TUI-driven commands launch a Bubble Tea program.
 - Long-running external work (browser monitoring via Rod, database queries) communicates with Bubble Tea models through Go channels wrapped in `tea.Cmd` functions.
-- Configuration lives in `~/.config/hone/config.yaml` managed by Viper. This includes the active playlist selection, duration thresholds, and platform URL templates (e.g. `platforms.neetcode.url_template: "https://neetcode.io/problems/{{slug}}/question"`). Problem URLs are constructed at runtime from platform + slug + template.
+- Configuration lives in `~/.config/hone/config.yaml` managed by Viper. This includes duration thresholds and platform URL templates (e.g. `platforms.neetcode.url_template: "https://neetcode.io/problems/{{slug}}/question"`). Problem URLs are constructed at runtime from platform + slug + template.
 - Data lives in `~/.local/share/hone/data.db` as a SQLite database.
 - The application is distributed as a Homebrew tap (`brew install [org]/tap/hone`). The build uses GoReleaser to produce macOS binaries and generate the Homebrew formula automatically.
 
@@ -63,7 +63,7 @@ Running the CLI with no arguments opens the **statistics dashboard** as the land
 - **Attempts** — id, problem_id, started_at, completed_at, result (success/fail), duration_seconds, quality (int, 1–5)
 - **ProblemSRS** — problem_id, easiness_factor (float, default 2.5), interval_days (int, default 1), repetition_count (int, consecutive successes), next_review_date (date), mastered_before (bool, default false)
 
-An active playlist OR active topic is stored in config (`active_playlist_id` / `active_topic_id`). The two are **mutually exclusive**: `config.SetActivePlaylist` clears `active_topic_id` and vice versa. The unified `store.PracticeFilter{PlaylistID *int, TopicID *int}` struct is threaded through the app; `store.ListPickQueue` and stats queries apply whichever field is non-nil.
+An active playlist OR active topic is stored in the `settings` table in SQLite (`active_playlist_id` / `active_topic_id` with FK constraints and `ON DELETE SET NULL`). The two are **mutually exclusive**: `store.SetActivePlaylist` clears `active_topic_id` and vice versa. The unified `store.PracticeFilter{PlaylistID *int, TopicID *int}` struct is threaded through the app; `store.ListPickQueue` and stats queries apply whichever field is non-nil.
 
 ## Picker Algorithm (SM-2 Based Spaced Repetition)
 
@@ -85,8 +85,8 @@ Quality is determined automatically from the outcome and solve duration. No self
 | Difficulty | Fast (quality 5) | Normal (quality 4) | Slow (quality 3) |
 |------------|-------------------|--------------------|-------------------|
 | Easy       | < 10 min          | 10–20 min          | > 20 min          |
-| Medium     | < 15 min          | 15–30 min          | > 30 min          |
-| Hard       | < 20 min          | 20–40 min          | > 40 min          |
+| Medium     | < 18 min          | 18–30 min          | > 30 min          |
+| Hard       | < 30 min          | 30–40 min          | > 40 min          |
 
 These thresholds are hardcoded defaults, overridable in config via Viper (e.g. `thresholds.easy.fast: 10`).
 

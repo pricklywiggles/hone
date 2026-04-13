@@ -33,8 +33,12 @@ var playlistCmd = &cobra.Command{
 	Use:   "playlist",
 	Short: "Manage playlists",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		m := tui.NewPlaylistHubModel(appDB, config.BrowserProfileDir(), config.ActivePlaylistID())
-		_, err := tui.Run(m)
+		activeID, err := store.ActivePlaylistID(appDB)
+		if err != nil {
+			return err
+		}
+		m := tui.NewPlaylistHubModel(appDB, config.BrowserProfileDir(), activeID)
+		_, err = tui.Run(m)
 		return err
 	},
 }
@@ -71,7 +75,10 @@ var playlistListCmd = &cobra.Command{
 			return nil
 		}
 
-		activeID := config.ActivePlaylistID()
+		activeID, err := store.ActivePlaylistID(appDB)
+		if err != nil {
+			return err
+		}
 		fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", plHeadStyle.Render(fmt.Sprintf("%-22s %s", "NAME", "PROBLEMS")))
 		for _, p := range playlists {
 			if activeID != nil && *activeID == p.ID {
@@ -106,7 +113,7 @@ var playlistSelectCmd = &cobra.Command{
 				}
 				return err
 			}
-			if err := config.SetActivePlaylist(playlist.ID); err != nil {
+			if err := store.SetActivePlaylist(appDB, playlist.ID); err != nil {
 				return err
 			}
 			fmt.Printf("%s Active playlist set to %s\n", plOKStyle.Render("✓"), plNameStyle.Render(name))
@@ -123,7 +130,11 @@ var playlistSelectCmd = &cobra.Command{
 			return nil
 		}
 
-		m := tui.NewPlaylistSelectModel(playlists, config.ActivePlaylistID())
+		activeSelectID, err := store.ActivePlaylistID(appDB)
+		if err != nil {
+			return err
+		}
+		m := tui.NewPlaylistSelectModel(playlists, activeSelectID)
 		finalModel, err := tui.Run(m)
 		if err != nil {
 			return err
@@ -134,7 +145,7 @@ var playlistSelectCmd = &cobra.Command{
 			return nil
 		}
 		p := result.Selected()
-		if err := config.SetActivePlaylist(p.ID); err != nil {
+		if err := store.SetActivePlaylist(appDB, p.ID); err != nil {
 			return err
 		}
 		fmt.Printf("%s Active playlist set to %s\n", plOKStyle.Render("✓"), plNameStyle.Render(p.Name))

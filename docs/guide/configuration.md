@@ -1,6 +1,6 @@
 # Configuration
 
-hone stores its config at `~/.config/hone/config.yaml`. The file is created automatically on first run. You can edit it directly or let hone manage it through the UI (active filter selections are written by the app).
+hone stores its config at `~/.config/hone/config.yaml`. The file is created automatically on first run with sensible defaults. You can edit it directly to customize thresholds and platform URL templates.
 
 ---
 
@@ -24,10 +24,10 @@ thresholds:
     fast: 10    # minutes — quality 5 if faster than this
     normal: 20  # minutes — quality 4 if between fast and normal; quality 3 if slower
   medium:
-    fast: 15
+    fast: 18
     normal: 30
   hard:
-    fast: 20
+    fast: 30
     normal: 40
 ```
 
@@ -60,14 +60,13 @@ The `{{slug}}` placeholder is replaced with the problem slug (e.g. `two-sum`).
 
 ## Active filter
 
-The active filter is written by hone when you select a playlist or topic from the dashboard. You can also set it manually:
+The active filter (playlist or topic) is stored in the database, not in config.yaml. Set it from the dashboard (Playlists or Topics tab, press Enter) or via the CLI:
 
-```yaml
-active_playlist_id: 3   # ID of the active playlist (0 = none)
-active_topic_id: 0      # ID of the active topic (0 = none)
+```sh
+hone playlist select "Week 1"
 ```
 
-Playlist and topic are mutually exclusive — setting one clears the other.
+Playlist and topic are mutually exclusive — setting one clears the other. The active filter is included in JSON backups and restored automatically.
 
 ---
 
@@ -79,10 +78,10 @@ thresholds:
     fast: 10
     normal: 20
   medium:
-    fast: 15
+    fast: 18
     normal: 30
   hard:
-    fast: 20
+    fast: 30
     normal: 40
 
 platforms:
@@ -92,7 +91,4 @@ platforms:
     url_template: "https://neetcode.io/problems/{{slug}}/question"
   geeksforgeeks:
     url_template: "https://www.geeksforgeeks.org/problems/{{slug}}/1"
-
-active_playlist_id: 0
-active_topic_id: 0
 ```

@@ -8,17 +8,20 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/pricklywiggles/hone/internal/config"
+	"github.com/pricklywiggles/hone/internal/store"
 )
 
-const backupVersion = 1
+const backupVersion = 2
 
 // BackupData is the full JSON backup format for hone init/export --backup.
 type BackupData struct {
-	Version    int               `json:"version"`
-	ExportedAt string            `json:"exported_at"`
-	Problems   []ProblemBackup   `json:"problems"`
-	Playlists  []PlaylistBackup  `json:"playlists"`
-	Attempts   []AttemptBackup   `json:"attempts"`
+	Version        int               `json:"version"`
+	ExportedAt     string            `json:"exported_at"`
+	ActivePlaylist string            `json:"active_playlist,omitempty"`
+	ActiveTopic    string            `json:"active_topic,omitempty"`
+	Problems       []ProblemBackup   `json:"problems"`
+	Playlists      []PlaylistBackup  `json:"playlists"`
+	Attempts       []AttemptBackup   `json:"attempts"`
 }
 
 type ProblemBackup struct {
@@ -74,6 +77,19 @@ func ExportFullBackup(db *sqlx.DB) (BackupData, error) {
 		return BackupData{}, fmt.Errorf("attempts: %w", err)
 	}
 	data.Attempts = attempts
+
+	if id, _ := store.ActivePlaylistID(db); id != nil {
+		var name string
+		if err := db.Get(&name, `SELECT name FROM playlists WHERE id = ?`, *id); err == nil {
+			data.ActivePlaylist = name
+		}
+	}
+	if id, _ := store.ActiveTopicID(db); id != nil {
+		var name string
+		if err := db.Get(&name, `SELECT name FROM topics WHERE id = ?`, *id); err == nil {
+			data.ActiveTopic = name
+		}
+	}
 
 	return data, nil
 }

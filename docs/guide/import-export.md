@@ -83,8 +83,9 @@ Example output:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "exported_at": "2026-03-30T14:00:00Z",
+  "active_playlist": "Favorites",
   "problems": [
     {
       "platform": "neetcode",
@@ -119,6 +120,8 @@ Example output:
 }
 ```
 
+The `active_playlist` and `active_topic` fields record which filter was active at export time (by name). They are omitted when no filter is active. On restore, hone looks up the name and re-activates it.
+
 ### Restoring
 
 ```sh
@@ -147,4 +150,4 @@ hone import --backup backup.json
    hone import --backup hone-backup.json
    ```
 
-Your entire history, SRS state, and playlists are restored. You'll need to re-authenticate with problem platforms (`hone auth neetcode`), since the browser profile is not included in the backup.
+Your entire history, SRS state, playlists, and active filter selection are restored. You'll need to re-authenticate with problem platforms (`hone auth neetcode`), since the browser profile is not included in the backup.

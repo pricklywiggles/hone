@@ -6,7 +6,6 @@ import (
 	"charm.land/lipgloss/v2"
 	tea "charm.land/bubbletea/v2"
 	"github.com/jmoiron/sqlx"
-	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/store"
 )
 
@@ -211,9 +210,8 @@ func (m DashboardModel) routeToActive(msg tea.Msg) (DashboardModel, tea.Cmd) {
 }
 
 func (m *DashboardModel) syncFilter() {
-	m.filter = store.PracticeFilter{
-		PlaylistID: config.ActivePlaylistID(),
-		TopicID:    config.ActiveTopicID(),
+	if f, err := store.ActiveFilter(m.db); err == nil {
+		m.filter = f
 	}
 }
 

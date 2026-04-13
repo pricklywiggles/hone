@@ -12,7 +12,7 @@ hone/
 │   └── playlist.go       hone playlist create|list|select
 │
 ├── internal/
-│   ├── config/           Viper config init, accessors, BuildURL
+│   ├── config/           Viper config init, BuildURL, threshold accessors
 │   ├── db/               sqlx open + goose migrations (embedded SQL)
 │   ├── platform/         URL parsing (ParseURL)
 │   ├── srs/              Pure SM-2 logic (UpdateEF, UpdateSRS, QualityFromDuration)
@@ -110,6 +110,7 @@ playlists       -- id, name, created_at
 playlist_problems -- playlist_id, problem_id, position (many-to-many, ordered)
 attempts        -- id, problem_id, started_at, completed_at, result, duration_seconds, quality
 problem_srs     -- problem_id, easiness_factor, interval_days, repetition_count, next_review_date, mastered_before
+settings        -- single-row: active_playlist_id (FK), active_topic_id (FK)
 ```
 
 A database trigger `trg_init_problem_srs` automatically inserts a default `problem_srs` row whenever a problem is inserted. This guarantees every problem has SRS state and simplifies all query paths.
