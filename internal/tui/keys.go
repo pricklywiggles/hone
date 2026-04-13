@@ -108,6 +108,7 @@ type practiceStartKeyMap struct{}
 func (practiceStartKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "start")),
+		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "debug queue")),
 		key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
 }

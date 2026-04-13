@@ -219,16 +219,16 @@ func (m PracticeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(m.saveAttempt(r), focusTerminalCmd())
 			}
 		case "d":
-			if m.state == practiceDone {
+			if m.state == practiceStart || m.state == practiceDone {
 				m.showDebug = !m.showDebug
 				m.debugScroll = 0
 			}
 		case "j", "down":
-			if m.showDebug && m.state == practiceDone {
+			if m.showDebug && (m.state == practiceStart || m.state == practiceDone) {
 				m.debugScroll++
 			}
 		case "k", "up":
-			if m.showDebug && m.state == practiceDone && m.debugScroll > 0 {
+			if m.showDebug && (m.state == practiceStart || m.state == practiceDone) && m.debugScroll > 0 {
 				m.debugScroll--
 			}
 		}
@@ -463,7 +463,10 @@ func (m PracticeModel) renderLayout(card string, keys help.KeyMap) string {
 }
 
 func (m PracticeModel) renderDebugPanel() string {
-	total := 1 + len(m.queue) // current problem + remaining
+	total := len(m.queue)
+	if m.problem != nil {
+		total++
+	}
 	header := prDimStyle.Render(fmt.Sprintf("── queue (%d) ──", total))
 
 	type entry struct {
@@ -607,12 +610,7 @@ func (m PracticeModel) viewStart() string {
 
 	content := lipgloss.JoinVertical(lipgloss.Center, lines...)
 	card := prCardBase.Align(lipgloss.Center).BorderForeground(borderColor).Render(content)
-
-	if m.width == 0 {
-		return "\n" + card
-	}
-	availH := m.height - 2
-	return lipgloss.Place(m.width, availH, lipgloss.Center, lipgloss.Center, card)
+	return m.renderLayout(card, practiceStartKeyMap{})
 }
 
 func (m PracticeModel) viewAllCaughtUp() string {
