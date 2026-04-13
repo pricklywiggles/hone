@@ -17,6 +17,17 @@ func MigrateActiveSettingsToDB(db *sqlx.DB) error {
 		return nil
 	}
 
+	// If the DB already has an active setting, don't overwrite — the user
+	// either already migrated or set a value through the new code path.
+	current, err := store.ActiveFilter(db)
+	if err != nil {
+		return err
+	}
+	if current.PlaylistID != nil || current.TopicID != nil {
+		clearConfigFilterKeys()
+		return nil
+	}
+
 	if playlistID > 0 {
 		var exists bool
 		if err := db.Get(&exists, `SELECT COUNT(*) > 0 FROM playlists WHERE id = ?`, playlistID); err != nil {
@@ -39,9 +50,12 @@ func MigrateActiveSettingsToDB(db *sqlx.DB) error {
 		}
 	}
 
-	viper.Set("active_playlist_id", nil)
-	viper.Set("active_topic_id", nil)
-	_ = viper.WriteConfig()
-
+	clearConfigFilterKeys()
 	return nil
+}
+
+func clearConfigFilterKeys() {
+	viper.Set("active_playlist_id", 0)
+	viper.Set("active_topic_id", 0)
+	_ = viper.WriteConfig()
 }
