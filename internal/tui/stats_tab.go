@@ -552,6 +552,9 @@ func renderSegmentedBar(total, width int, segments ...barSegment) string {
 	for _, seg := range segments {
 		segSum += seg.value
 	}
+	if segSum == 0 {
+		return lipgloss.NewStyle().Background(barEmptyColor).Render(strings.Repeat(" ", width))
+	}
 	filledWidth := width
 	if segSum < total {
 		filledWidth = int(math.Round(float64(segSum) / float64(total) * float64(width)))
@@ -592,7 +595,6 @@ func renderSegmentedBar(total, width int, segments ...barSegment) string {
 			b.WriteString(lipgloss.NewStyle().Background(seg.color).Render(strings.Repeat(" ", widths[i])))
 			used += widths[i]
 		}
-		_ = seg
 	}
 	if used < width {
 		b.WriteString(lipgloss.NewStyle().Background(barEmptyColor).Render(strings.Repeat(" ", width-used)))

@@ -470,6 +470,162 @@ func TestResolveFilterName(t *testing.T) {
 	}
 }
 
+func TestGetTopicStats_Ranking(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// 4 problems, 3 topics. Each problem belongs to exactly one topic.
+	seedProblem(t, d, "leetcode", "two-sum", "easy")       // id 1 → arrays
+	seedProblem(t, d, "leetcode", "three-sum", "medium")   // id 2 → arrays
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium") // id 3 → linked lists
+	seedProblem(t, d, "leetcode", "merge-lists", "easy")   // id 4 → linked lists
+
+	d.MustExec(`INSERT INTO topics (name) VALUES ('arrays')`)        // id 1
+	d.MustExec(`INSERT INTO topics (name) VALUES ('linked lists')`)  // id 2
+	d.MustExec(`INSERT INTO topics (name) VALUES ('untouched')`)     // id 3
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (1, 1)`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (2, 1)`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (3, 2)`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (4, 2)`)
+	// untouched topic needs a problem to exist in the query
+	seedProblem(t, d, "leetcode", "lonely", "easy") // id 5
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (5, 3)`)
+
+	now := time.Now().UTC()
+
+	// arrays: 1 success on problem 1 (2 total problems) → score = (1-0)/2 = 0.5
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	// linked lists: 1 success + 1 failure on problem 3 (2 total problems) → score = (1-1)/2 = 0.0
+	RecordAttempt(d, 3, now, now.Add(5*time.Minute), "success", 300, 5)
+	RecordAttempt(d, 3, now, now.Add(10*time.Minute), "fail", 600, 1)
+
+	// untouched: no attempts → should sort last
+
+	stats, err := GetTopicStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 3 {
+		t.Fatalf("expected 3 topics, got %d", len(stats))
+	}
+
+	// Linked lists (score 0.0) should rank before arrays (score 0.5).
+	if stats[0].Name != "linked lists" {
+		t.Errorf("expected 'linked lists' first (weakest), got %q", stats[0].Name)
+	}
+	if stats[1].Name != "arrays" {
+		t.Errorf("expected 'arrays' second, got %q", stats[1].Name)
+	}
+	// Untouched last.
+	if stats[2].Name != "untouched" {
+		t.Errorf("expected 'untouched' last, got %q", stats[2].Name)
+	}
+
+	// Verify successes/failures counts.
+	if stats[0].Successes != 1 || stats[0].Failures != 1 {
+		t.Errorf("linked lists: successes=%d failures=%d, want 1/1", stats[0].Successes, stats[0].Failures)
+	}
+	if stats[1].Successes != 1 || stats[1].Failures != 0 {
+		t.Errorf("arrays: successes=%d failures=%d, want 1/0", stats[1].Successes, stats[1].Failures)
+	}
+
+	// Negative score: add more failures to linked lists.
+	RecordAttempt(d, 4, now, now.Add(15*time.Minute), "fail", 900, 1)
+	RecordAttempt(d, 4, now, now.Add(20*time.Minute), "fail", 1200, 1)
+
+	stats, err = GetTopicStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// linked lists now: 1 success, 3 failures → score = (1-3)/2 = -1.0
+	// Should still sort before arrays (0.5), not get pushed to end.
+	if stats[0].Name != "linked lists" {
+		t.Errorf("after more failures: expected 'linked lists' still first, got %q", stats[0].Name)
+	}
+	if stats[0].SuccessRate >= 0 {
+		t.Errorf("linked lists success_rate should be negative, got %f", stats[0].SuccessRate)
+	}
+}
+
+func TestGetTopicStats_MasteredCount(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium")
+
+	d.MustExec(`INSERT INTO topics (name) VALUES ('arrays')`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (1, 1)`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (2, 1)`)
+
+	// Mark problem 1 as mastered.
+	d.MustExec(`UPDATE problem_srs SET mastered_before = 1 WHERE problem_id = 1`)
+
+	now := time.Now().UTC()
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	stats, err := GetTopicStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 topic, got %d", len(stats))
+	}
+	// Mastered should be 1 (count), not the problem ID value.
+	if stats[0].Mastered != 1 {
+		t.Errorf("mastered = %d, want 1 (was previously summing IDs)", stats[0].Mastered)
+	}
+}
+
+func TestGetPlaylistPerfStats_Ranking(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")       // id 1
+	seedProblem(t, d, "leetcode", "add-two-numbers", "medium") // id 2
+	seedProblem(t, d, "leetcode", "longest-substring", "hard") // id 3
+
+	d.MustExec(`INSERT INTO playlists (name) VALUES ('small')`) // id 1: 1 problem
+	d.MustExec(`INSERT INTO playlists (name) VALUES ('big')`)   // id 2: 3 problems
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 1, 0)`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (2, 1, 0)`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (2, 2, 1)`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (2, 3, 2)`)
+
+	now := time.Now().UTC()
+
+	// Both playlists share problem 1 with 1 success.
+	// small: 1 success / 1 total → score = (1-0)/1 = 1.0
+	// big:   1 success / 3 total → score = (1-0)/3 ≈ 0.33
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	stats, err := GetPlaylistPerfStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 2 {
+		t.Fatalf("expected 2 playlists, got %d", len(stats))
+	}
+
+	// big (lower score) should rank first.
+	if stats[0].Name != "big" {
+		t.Errorf("expected 'big' first (weaker due to size), got %q", stats[0].Name)
+	}
+	if stats[1].Name != "small" {
+		t.Errorf("expected 'small' second, got %q", stats[1].Name)
+	}
+}
+
 func seedProblem(t *testing.T, d *sqlx.DB, platform, slug, difficulty string) {
 	t.Helper()
 	d.MustExec(
