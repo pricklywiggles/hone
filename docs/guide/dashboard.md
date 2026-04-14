@@ -19,8 +19,9 @@ Switch tabs with `Tab` / `Shift+Tab` or the left/right arrow keys.
 The Stats tab is the landing screen. It shows:
 
 - **Overview cards** — total problems, due today, mastered count, current streak
-- **Progress bars** — segmented bars showing attempted/mastered split per difficulty (Easy / Medium / Hard)
-- **Per-topic breakdown** — every topic with problem count, mastered count, and due count; weakest topics surface first
+- **Progress bars** — segmented bars showing mastered/attempted split per difficulty (Easy / Medium / Hard), with color legend
+- **Worst performance by playlist** — playlists ranked by (successes − failures) / total problems; only shown for playlists with attempts
+- **Worst performance by topic** — topics ranked the same way; bars show succeeded/failed/unattempted segments
 - **Currently practicing** — shown when a playlist or topic filter is active; displays filter name with due count
 
 ---
