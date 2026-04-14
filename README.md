@@ -72,7 +72,7 @@ A tabbed TUI with four views:
 
 | Tab | What's there |
 |-----|-------------|
-| **Stats** | Overview counts, streak, progress by difficulty, per-topic breakdown |
+| **Stats** | Overview counts, streak, progress by difficulty, performance by playlist and topic |
 | **Problems** | Full library with SRS state, sortable and filterable |
 | **Playlists** | Create and manage groups; Enter toggles as active filter |
 | **Topics** | Topic breakdown with sort modes; Enter filters practice to that topic |
@@ -134,7 +134,7 @@ The JSON backup includes all problems, SRS state, attempt history, and playlists
 | Path | Contents |
 |------|----------|
 | `~/.local/share/hone/data.db` | SQLite database |
-| `~/.config/hone/config.yaml` | Config (thresholds, active filter, URL templates) |
+| `~/.config/hone/config.yaml` | Config (thresholds, URL templates) |
 | `~/.local/share/hone/browser-profile/` | Persistent Chrome profile |
 
 Reset the database: `rm ~/.local/share/hone/data.db` (recreated on next run).

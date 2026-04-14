@@ -14,4 +14,5 @@ var (
 	colorBright   = lipgloss.Color("#ABB2BF") // light gray — prominent text
 	colorBarDone  = lipgloss.Color("#56B6C2") // muted teal — mastered segment in progress bars
 	colorBarWIP   = lipgloss.Color("#8A7FBD") // dusty lavender — attempted segment in progress bars
+	colorBarFail  = lipgloss.Color("#A8848A") // warm mauve — failure segment in weakest topics bars
 )
