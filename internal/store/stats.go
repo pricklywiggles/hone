@@ -31,6 +31,8 @@ type TopicStat struct {
 	Attempted   int     `db:"attempted"`
 	Mastered    int     `db:"mastered"`
 	DueToday    int     `db:"due_today"`
+	Successes   int     `db:"successes"`
+	Failures    int     `db:"failures"`
 	SuccessRate float64 `db:"success_rate"` // -1 means no attempts yet
 }
 
@@ -186,8 +188,8 @@ func GetDiffStats(db *sqlx.DB) ([]DiffStat, error) {
 	return stats, err
 }
 
-// GetTopicStats returns mastery/attempt counts grouped by topic, ordered by
-// success rate ascending (weakest topics first). Topics with no attempts appear last.
+// GetTopicStats returns per-topic stats ordered by performance ascending
+// (successes / total problems). Topics with no attempts appear last.
 func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 	today := localToday()
 	var stats []TopicStat
@@ -197,19 +199,51 @@ func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 			t.name,
 			COUNT(DISTINCT pt.problem_id) AS total,
 			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pt.problem_id END) AS attempted,
-			COALESCE(SUM(DISTINCT CASE WHEN ps.mastered_before THEN pt.problem_id END), 0) AS mastered,
+			COUNT(DISTINCT CASE WHEN ps.mastered_before THEN pt.problem_id END) AS mastered,
 			COUNT(DISTINCT CASE WHEN ps.next_review_date <= ? THEN pt.problem_id END) AS due_today,
-			COALESCE(
-				CAST(SUM(CASE WHEN a.result = 'success' THEN 1.0 ELSE 0.0 END) AS REAL)
-				/ NULLIF(COUNT(a.id), 0),
-				-1.0
-			) AS success_rate
+			COALESCE(SUM(CASE WHEN a.result = 'success' THEN 1 ELSE 0 END), 0) AS successes,
+			COALESCE(SUM(CASE WHEN a.result != 'success' THEN 1 ELSE 0 END), 0) AS failures,
+			CASE WHEN COUNT(a.id) = 0 THEN -1.0
+				ELSE CAST(
+					SUM(CASE WHEN a.result = 'success' THEN 1.0 ELSE -1.0 END) AS REAL
+				) / COUNT(DISTINCT pt.problem_id)
+			END AS success_rate
 		FROM topics t
 		JOIN problem_topics pt ON pt.topic_id = t.id
 		LEFT JOIN problem_srs ps ON ps.problem_id = pt.problem_id
 		LEFT JOIN attempts a ON a.problem_id = pt.problem_id
 		GROUP BY t.id, t.name
-		ORDER BY CASE WHEN success_rate < 0 THEN 1 ELSE 0 END, success_rate ASC
+		ORDER BY CASE WHEN COUNT(a.id) = 0 THEN 1 ELSE 0 END, success_rate ASC
+	`, today)
+	return stats, err
+}
+
+// GetPlaylistPerfStats returns per-playlist stats ordered by performance ascending
+// (successes / total problems). Playlists with no attempts appear last.
+func GetPlaylistPerfStats(db *sqlx.DB) ([]TopicStat, error) {
+	today := localToday()
+	var stats []TopicStat
+	err := db.Select(&stats, `
+		SELECT
+			pl.id,
+			pl.name,
+			COUNT(DISTINCT pp.problem_id) AS total,
+			COUNT(DISTINCT CASE WHEN a.problem_id IS NOT NULL THEN pp.problem_id END) AS attempted,
+			COUNT(DISTINCT CASE WHEN ps.mastered_before THEN pp.problem_id END) AS mastered,
+			COUNT(DISTINCT CASE WHEN ps.next_review_date <= ? THEN pp.problem_id END) AS due_today,
+			COALESCE(SUM(CASE WHEN a.result = 'success' THEN 1 ELSE 0 END), 0) AS successes,
+			COALESCE(SUM(CASE WHEN a.result != 'success' THEN 1 ELSE 0 END), 0) AS failures,
+			CASE WHEN COUNT(a.id) = 0 THEN -1.0
+				ELSE CAST(
+					SUM(CASE WHEN a.result = 'success' THEN 1.0 ELSE -1.0 END) AS REAL
+				) / COUNT(DISTINCT pp.problem_id)
+			END AS success_rate
+		FROM playlists pl
+		JOIN playlist_problems pp ON pp.playlist_id = pl.id
+		LEFT JOIN problem_srs ps ON ps.problem_id = pp.problem_id
+		LEFT JOIN attempts a ON a.problem_id = pp.problem_id
+		GROUP BY pl.id, pl.name
+		ORDER BY CASE WHEN COUNT(a.id) = 0 THEN 1 ELSE 0 END, success_rate ASC
 	`, today)
 	return stats, err
 }

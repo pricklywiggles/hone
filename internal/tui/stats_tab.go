@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ type statsLoadedMsg struct {
 	overview      store.OverviewStats
 	streak        int
 	diff          []store.DiffStat
+	playlists     []store.TopicStat
 	topics        []store.TopicStat
 	recent        []store.RecentAttempt
 	practiceStats *store.PlaylistStats
@@ -65,6 +67,7 @@ type StatsTabModel struct {
 	overview      store.OverviewStats
 	streak        int
 	diff          []store.DiffStat
+	playlists     []store.TopicStat
 	topics        []store.TopicStat
 	recent        []store.RecentAttempt
 	practiceStats *store.PlaylistStats
@@ -102,6 +105,10 @@ func (m StatsTabModel) loadCmd() tea.Cmd {
 		if err != nil {
 			return statsErrMsg{err}
 		}
+		playlists, err := store.GetPlaylistPerfStats(m.db)
+		if err != nil {
+			return statsErrMsg{err}
+		}
 		topics, err := store.GetTopicStats(m.db)
 		if err != nil {
 			return statsErrMsg{err}
@@ -122,7 +129,7 @@ func (m StatsTabModel) loadCmd() tea.Cmd {
 				ps = &s
 			}
 		}
-		return statsLoadedMsg{overview: overview, streak: streak, diff: diff, topics: topics, recent: recent, practiceStats: ps}
+		return statsLoadedMsg{overview: overview, streak: streak, diff: diff, playlists: playlists, topics: topics, recent: recent, practiceStats: ps}
 	}
 }
 
@@ -139,6 +146,7 @@ func (m StatsTabModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overview = msg.overview
 		m.streak = msg.streak
 		m.diff = msg.diff
+		m.playlists = msg.playlists
 		m.topics = msg.topics
 		m.recent = msg.recent
 		m.practiceStats = msg.practiceStats
@@ -321,30 +329,80 @@ func (m StatsTabModel) renderScrollableContent() string {
 			b.WriteString(label + bar + "  " + statsDimStyle.Render(fmt.Sprintf("%-7s %s", ratio, mastered)))
 			b.WriteString("\n")
 		}
+		b.WriteString("\n")
+		b.WriteString(renderLegendDot(barMasteredColor) + " " + statsDimStyle.Render("mastered"))
+		b.WriteString("   ")
+		b.WriteString(renderLegendDot(barAttemptColor) + " " + statsDimStyle.Render("attempted"))
+		b.WriteString("   ")
+		b.WriteString(renderLegendDot(barEmptyColor) + " " + statsDimStyle.Render("remaining"))
+		b.WriteString("\n")
 	}
 
-	// ── Weakest topics ────────────────────────────────────────────────────────
-	if len(m.topics) > 0 {
-		b.WriteString("\n")
-		b.WriteString(statsSectionStyle.Render("Weakest Topics"))
+	// ── Worst performance by playlist ────────────────────────────────────────
+	var attemptedPlaylists []store.TopicStat
+	for _, p := range m.playlists {
+		if p.Successes+p.Failures > 0 {
+			attemptedPlaylists = append(attemptedPlaylists, p)
+		}
+	}
+	if len(attemptedPlaylists) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(statsSectionStyle.Render("Worst Performance By Playlist"))
 		b.WriteString("\n\n")
 		limit := 6
-		for i, t := range m.topics {
+		for i, p := range attemptedPlaylists {
+			if i >= limit {
+				break
+			}
+			name := fmt.Sprintf("%-20s", truncate(p.Name, 20))
+
+			bar := renderSegmentedBar(p.Total, 28,
+				barSegment{value: p.Successes, color: colorSuccess},
+				barSegment{value: p.Failures, color: colorBarFail},
+			)
+
+			ratio := statsDimStyle.Render(fmt.Sprintf("  %3d/%-3d", p.Successes, p.Total))
+
+			dueStr := "          "
+			if p.DueToday > 0 {
+				dueStr = "  " + lipgloss.NewStyle().Foreground(colorWarning).Render(fmt.Sprintf("%d due", p.DueToday))
+			}
+
+			b.WriteString(name + "  " + bar + ratio + dueStr + "\n")
+		}
+		b.WriteString("\n")
+		b.WriteString(renderLegendDot(colorSuccess) + " " + statsDimStyle.Render("succeeded"))
+		b.WriteString("   ")
+		b.WriteString(renderLegendDot(colorBarFail) + " " + statsDimStyle.Render("failed"))
+		b.WriteString("   ")
+		b.WriteString(renderLegendDot(barEmptyColor) + " " + statsDimStyle.Render("unattempted"))
+		b.WriteString("\n")
+	}
+
+	// ── Worst performance by topic ───────────────────────────────────────────
+	var attempted []store.TopicStat
+	for _, t := range m.topics {
+		if t.Successes+t.Failures > 0 {
+			attempted = append(attempted, t)
+		}
+	}
+	if len(attempted) > 0 {
+		b.WriteString("\n\n")
+		b.WriteString(statsSectionStyle.Render("Worst Performance By Topic"))
+		b.WriteString("\n\n")
+		limit := 6
+		for i, t := range attempted {
 			if i >= limit {
 				break
 			}
 			name := fmt.Sprintf("%-20s", truncate(t.Name, 20))
 
-			notMastered := t.Attempted - t.Mastered
-			if notMastered < 0 {
-				notMastered = 0
-			}
 			bar := renderSegmentedBar(t.Total, 28,
-				barSegment{value: t.Mastered, color: barMasteredColor},
-				barSegment{value: notMastered, color: barAttemptColor},
+				barSegment{value: t.Successes, color: colorSuccess},
+				barSegment{value: t.Failures, color: colorBarFail},
 			)
 
-			ratio := statsDimStyle.Render(fmt.Sprintf("  %3d/%-3d", t.Mastered, t.Total))
+			ratio := statsDimStyle.Render(fmt.Sprintf("  %3d/%-3d", t.Successes, t.Total))
 
 			dueStr := "          "
 			if t.DueToday > 0 {
@@ -353,11 +411,18 @@ func (m StatsTabModel) renderScrollableContent() string {
 
 			b.WriteString(name + "  " + bar + ratio + dueStr + "\n")
 		}
+		b.WriteString("\n")
+		b.WriteString(renderLegendDot(colorSuccess) + " " + statsDimStyle.Render("succeeded"))
+		b.WriteString("   ")
+		b.WriteString(renderLegendDot(colorBarFail) + " " + statsDimStyle.Render("failed"))
+		b.WriteString("   ")
+		b.WriteString(renderLegendDot(barEmptyColor) + " " + statsDimStyle.Render("unattempted"))
+		b.WriteString("\n")
 	}
 
 	// ── Recent attempts ───────────────────────────────────────────────────────
 	if len(m.recent) > 0 {
-		b.WriteString("\n")
+		b.WriteString("\n\n")
 		b.WriteString(statsSectionStyle.Render("Recent"))
 		b.WriteString("\n\n")
 		for _, a := range m.recent {
@@ -441,21 +506,21 @@ func (m StatsTabModel) renderPracticeSection(ps *store.PlaylistStats, cardsWidth
 		barSegment{value: attempted, color: barAttemptColor},
 	))
 
-	left := fmt.Sprintf("  %d mastered / %d in progress / %d unseen", ps.Mastered, attempted, remaining)
-	right := ""
+	inner.WriteString("\n\n")
+	legend := renderLegendDot(barMasteredColor) + " " + statsDimStyle.Render(fmt.Sprintf("mastered %d", ps.Mastered))
+	legend += "   "
+	legend += renderLegendDot(barAttemptColor) + " " + statsDimStyle.Render(fmt.Sprintf("in progress %d", attempted))
+	legend += "   "
+	legend += renderLegendDot(barEmptyColor) + " " + statsDimStyle.Render(fmt.Sprintf("unseen %d", remaining))
 	if ps.DueToday > 0 {
-		right = fmt.Sprintf("%d due", ps.DueToday)
+		dueStr := lipgloss.NewStyle().Foreground(colorWarning).Render(fmt.Sprintf("%d due", ps.DueToday))
+		pad := barW - lipgloss.Width(legend) - lipgloss.Width(dueStr)
+		if pad < 1 {
+			pad = 1
+		}
+		legend += strings.Repeat(" ", pad) + dueStr
 	}
-	renderedLeft := statsDimStyle.Render(left)
-	rightPlain := right
-	if right != "" {
-		right = lipgloss.NewStyle().Foreground(colorWarning).Render(right)
-	}
-	pad := barW - lipgloss.Width(renderedLeft) - len(rightPlain) + 2
-	if pad < 1 {
-		pad = 1
-	}
-	inner.WriteString(renderedLeft + strings.Repeat(" ", pad) + right)
+	inner.WriteString(legend)
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -476,21 +541,58 @@ type barSegment struct {
 
 // renderSegmentedBar draws a single bar with multiple colored segments.
 // Segments are drawn left to right; remaining space uses barEmptyColor.
+// Non-zero segments always get at least 1 cell, and the filled portion
+// always sums exactly to the correct total width when segments cover all of total.
 func renderSegmentedBar(total, width int, segments ...barSegment) string {
 	if total == 0 {
 		return lipgloss.NewStyle().Background(barEmptyColor).Render(strings.Repeat(" ", width))
 	}
+
+	segSum := 0
+	for _, seg := range segments {
+		segSum += seg.value
+	}
+	filledWidth := width
+	if segSum < total {
+		filledWidth = int(math.Round(float64(segSum) / float64(total) * float64(width)))
+	}
+
+	widths := make([]int, len(segments))
+	allocated := 0
+	for i, seg := range segments {
+		if seg.value > 0 {
+			w := int(math.Round(float64(seg.value) / float64(segSum) * float64(filledWidth)))
+			if w < 1 {
+				w = 1
+			}
+			widths[i] = w
+			allocated += w
+		}
+	}
+	// Redistribute any overshoot/undershoot to the largest segment.
+	if allocated != filledWidth {
+		largest := -1
+		for i, seg := range segments {
+			if seg.value > 0 && (largest < 0 || widths[i] > widths[largest]) {
+				largest = i
+			}
+		}
+		if largest >= 0 {
+			widths[largest] += filledWidth - allocated
+			if widths[largest] < 1 {
+				widths[largest] = 1
+			}
+		}
+	}
+
 	var b strings.Builder
 	used := 0
-	for _, seg := range segments {
-		w := int(float64(seg.value) / float64(total) * float64(width))
-		if w+used > width {
-			w = width - used
+	for i, seg := range segments {
+		if widths[i] > 0 {
+			b.WriteString(lipgloss.NewStyle().Background(seg.color).Render(strings.Repeat(" ", widths[i])))
+			used += widths[i]
 		}
-		if w > 0 {
-			b.WriteString(lipgloss.NewStyle().Background(seg.color).Render(strings.Repeat(" ", w)))
-		}
-		used += w
+		_ = seg
 	}
 	if used < width {
 		b.WriteString(lipgloss.NewStyle().Background(barEmptyColor).Render(strings.Repeat(" ", width-used)))
