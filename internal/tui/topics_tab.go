@@ -215,8 +215,10 @@ func newTopicsTable(_ [][]string, height int) colorTable {
 	return newColorTable([]ctColumn{
 		{title: "Topic", width: 22},
 		{title: "Progress", width: 16},
-		{title: "Total", width: 6},
-		{title: "Mastered", width: 9},
+		{title: "Total", width: 7},
+		{title: "Mastered", width: 10},
+		{title: "Pass", width: 6},
+		{title: "Fail", width: 6},
 		{title: "Due", width: 5},
 		{title: "Rate", width: 6},
 	}, height)
@@ -229,14 +231,14 @@ func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 		if notMastered < 0 {
 			notMastered = 0
 		}
-		bar := renderSegmentedBar(r.Total, 16,
+		bar := renderSegmentedBar(r.Total, 14,
 			barSegment{value: r.Mastered, color: barMasteredColor},
 			barSegment{value: notMastered, color: barAttemptColor},
 		)
 
 		rateStr := statsDimStyle.Render("—")
-		if r.SuccessRate >= 0 {
-			pct := int(r.SuccessRate * 100)
+		if total := r.Successes + r.Failures; total > 0 {
+			pct := int(float64(r.Successes) / float64(total) * 100)
 			rateStr = lipgloss.NewStyle().Foreground(rateColor(pct)).Render(fmt.Sprintf("%d%%", pct))
 		}
 
@@ -254,6 +256,8 @@ func buildTopicRows(rows []store.TopicStat, activeTopicID *int) [][]string {
 			bar,
 			fmt.Sprintf("%d", r.Total),
 			fmt.Sprintf("%d", r.Mastered),
+			fmt.Sprintf("%d", r.Successes),
+			fmt.Sprintf("%d", r.Failures),
 			dueStr,
 			rateStr,
 		}

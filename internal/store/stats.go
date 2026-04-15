@@ -202,10 +202,10 @@ func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 			COUNT(DISTINCT CASE WHEN ps.mastered_before THEN pt.problem_id END) AS mastered,
 			COUNT(DISTINCT CASE WHEN ps.next_review_date <= ? THEN pt.problem_id END) AS due_today,
 			COALESCE(SUM(CASE WHEN a.result = 'success' THEN 1 ELSE 0 END), 0) AS successes,
-			COALESCE(SUM(CASE WHEN a.result != 'success' THEN 1 ELSE 0 END), 0) AS failures,
+			COALESCE(SUM(CASE WHEN a.result != 'success' AND a.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS failures,
 			CASE WHEN COUNT(a.id) = 0 THEN -1.0
 				ELSE CAST(
-					SUM(CASE WHEN a.result = 'success' THEN 1.0 ELSE -1.0 END) AS REAL
+					SUM(CASE WHEN a.id IS NULL THEN 0 WHEN a.result = 'success' THEN 1.0 ELSE -1.0 END) AS REAL
 				) / COUNT(DISTINCT pt.problem_id)
 			END AS success_rate
 		FROM topics t
@@ -232,10 +232,10 @@ func GetPlaylistPerfStats(db *sqlx.DB) ([]TopicStat, error) {
 			COUNT(DISTINCT CASE WHEN ps.mastered_before THEN pp.problem_id END) AS mastered,
 			COUNT(DISTINCT CASE WHEN ps.next_review_date <= ? THEN pp.problem_id END) AS due_today,
 			COALESCE(SUM(CASE WHEN a.result = 'success' THEN 1 ELSE 0 END), 0) AS successes,
-			COALESCE(SUM(CASE WHEN a.result != 'success' THEN 1 ELSE 0 END), 0) AS failures,
+			COALESCE(SUM(CASE WHEN a.result != 'success' AND a.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS failures,
 			CASE WHEN COUNT(a.id) = 0 THEN -1.0
 				ELSE CAST(
-					SUM(CASE WHEN a.result = 'success' THEN 1.0 ELSE -1.0 END) AS REAL
+					SUM(CASE WHEN a.id IS NULL THEN 0 WHEN a.result = 'success' THEN 1.0 ELSE -1.0 END) AS REAL
 				) / COUNT(DISTINCT pp.problem_id)
 			END AS success_rate
 		FROM playlists pl
