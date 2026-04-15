@@ -29,7 +29,7 @@ func (s topicSortMode) label() string {
 	case topicSortMastered:
 		return "% mastered"
 	case topicSortWeakest:
-		return "weakest first"
+		return "success rate"
 	default:
 		return "alphabetical"
 	}
@@ -81,18 +81,22 @@ func (m *TopicsTabModel) applySort() {
 		slices.SortStableFunc(sorted, func(a, b store.TopicStat) int {
 			return cmp.Compare(a.Name, b.Name)
 		})
-	default: // topicSortWeakest: success rate asc, unattempted last
+	default: // topicSortWeakest: success rate desc, unattempted last
 		slices.SortStableFunc(sorted, func(a, b store.TopicStat) int {
-			if a.SuccessRate < 0 && b.SuccessRate < 0 {
+			aTotal := a.Successes + a.Failures
+			bTotal := b.Successes + b.Failures
+			if aTotal == 0 && bTotal == 0 {
 				return 0
 			}
-			if a.SuccessRate < 0 {
+			if aTotal == 0 {
 				return 1
 			}
-			if b.SuccessRate < 0 {
+			if bTotal == 0 {
 				return -1
 			}
-			return cmp.Compare(a.SuccessRate, b.SuccessRate)
+			aRate := float64(a.Successes) / float64(aTotal)
+			bRate := float64(b.Successes) / float64(bTotal)
+			return cmp.Compare(bRate, aRate)
 		})
 	}
 	m.sorted = sorted
