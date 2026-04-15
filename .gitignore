@@ -17,3 +17,6 @@ test-data/
 
 # MkDocs build output
 site/
+
+# GoReleaser build output
+dist/
