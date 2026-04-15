@@ -21,6 +21,8 @@ Full docs at **https://pricklywiggles.github.io/hone** — user guide, command r
 ## Prerequisites
 
 - **Google Chrome** — hone uses Chrome for browser automation (scraping problem metadata, monitoring submissions during practice)
+- **Homebrew** - MacOS users will need [![Homebrew](https://brew.sh) to install hone.
+- **Scoop** - Windows users will need [![Scoop](https://scoop.sh) to install hone.
 
 ## Install
 
