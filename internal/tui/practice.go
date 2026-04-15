@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -405,6 +406,9 @@ func focusTerminalCmd() tea.Cmd {
 		return nil
 	}
 	return func() tea.Msg {
+		if runtime.GOOS != "darwin" {
+			return nil
+		}
 		app := os.Getenv("TERM_PROGRAM")
 		if app == "" || !safeAppName.MatchString(app) {
 			return nil

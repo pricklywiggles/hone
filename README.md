@@ -18,13 +18,26 @@ Full docs at **https://pricklywiggles.github.io/hone** — user guide, command r
 
 ---
 
+## Prerequisites
+
+- **Google Chrome** — hone uses Chrome for browser automation (scraping problem metadata, monitoring submissions during practice)
+
 ## Install
+
+**macOS** (Homebrew):
 
 ```sh
 brew install pricklywiggles/hone/hone
 ```
 
-Or build from source (requires Go 1.21+):
+**Windows** (Scoop):
+
+```sh
+scoop bucket add hone https://github.com/pricklywiggles/scoop-hone
+scoop install hone
+```
+
+**From source** (any platform, requires Go 1.21+):
 
 ```sh
 git clone https://github.com/pricklywiggles/hone
@@ -131,13 +144,13 @@ The JSON backup includes all problems, SRS state, attempt history, and playlists
 
 ## Data
 
-| Path | Contents |
-|------|----------|
-| `~/.local/share/hone/data.db` | SQLite database |
-| `~/.config/hone/config.yaml` | Config (thresholds, URL templates) |
-| `~/.local/share/hone/browser-profile/` | Persistent Chrome profile |
+| | macOS / Linux | Windows |
+|------|---------------|---------|
+| **Database** | `~/.local/share/hone/data.db` | `%AppData%\hone\data.db` |
+| **Config** | `~/.config/hone/config.yaml` | `%AppData%\hone\config.yaml` |
+| **Chrome profile** | `~/.local/share/hone/browser-profile/` | `%AppData%\hone\browser-profile\` |
 
-Reset the database: `rm ~/.local/share/hone/data.db` (recreated on next run).
+Reset the database by deleting `data.db` (recreated on next run).
 
 ---
 

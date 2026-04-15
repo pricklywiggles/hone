@@ -1,16 +1,16 @@
 # Configuration
 
-hone stores its config at `~/.config/hone/config.yaml`. The file is created automatically on first run with sensible defaults. You can edit it directly to customize thresholds and platform URL templates.
+hone stores its config in a platform-specific location. The file is created automatically on first run with sensible defaults. You can edit it directly to customize thresholds and platform URL templates.
 
 ---
 
-## File location
+## File locations
 
-| Path | Purpose |
-|------|---------|
-| `~/.config/hone/config.yaml` | Config file |
-| `~/.local/share/hone/data.db` | SQLite database |
-| `~/.local/share/hone/browser-profile/` | Chrome profile for browser automation |
+| | macOS / Linux | Windows |
+|------|---------------|---------|
+| **Config** | `~/.config/hone/config.yaml` | `%AppData%\hone\config.yaml` |
+| **Database** | `~/.local/share/hone/data.db` | `%AppData%\hone\data.db` |
+| **Chrome profile** | `~/.local/share/hone/browser-profile/` | `%AppData%\hone\browser-profile\` |
 
 ---
 

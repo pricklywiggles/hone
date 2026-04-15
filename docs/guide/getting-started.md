@@ -2,16 +2,23 @@
 
 ## Requirements
 
-- macOS (arm64 or amd64)
-- Google Chrome installed (used for browser automation during practice sessions)
+- macOS (arm64 or amd64) or Windows (amd64 or arm64)
+- Google Chrome installed (used for scraping problem metadata and monitoring submissions during practice)
 
 ---
 
 ## Installation
 
-/// tab | Homebrew
+/// tab | macOS (Homebrew)
 ```sh
 brew install pricklywiggles/hone/hone
+```
+///
+
+/// tab | Windows (Scoop)
+```sh
+scoop bucket add hone https://github.com/pricklywiggles/scoop-hone
+scoop install hone
 ```
 ///
 
@@ -33,7 +40,12 @@ go install .
 hone
 ```
 
-This opens the dashboard and creates the database at `~/.local/share/hone/data.db` on first launch. The config file lives at `~/.config/hone/config.yaml` and is created automatically with sensible defaults.
+This opens the dashboard and creates the database on first launch. The config file is created automatically with sensible defaults.
+
+| | macOS / Linux | Windows |
+|------|---------------|---------|
+| **Database** | `~/.local/share/hone/data.db` | `%AppData%\hone\data.db` |
+| **Config** | `~/.config/hone/config.yaml` | `%AppData%\hone\config.yaml` |
 
 ---
 
@@ -99,17 +111,17 @@ Press `p` from any tab to start a practice session using the active filter.
 
 ## What's stored
 
-| Path | Contents |
-|------|----------|
-| `~/.local/share/hone/data.db` | SQLite database (problems, SRS state, attempts, playlists) |
-| `~/.config/hone/config.yaml` | Config (thresholds, platform URL templates) |
-| `~/.local/share/hone/browser-profile/` | Persistent Chrome profile (keeps you logged in to problem sites) |
+| | macOS / Linux | Windows |
+|------|---------------|---------|
+| **Database** | `~/.local/share/hone/data.db` | `%AppData%\hone\data.db` |
+| **Config** | `~/.config/hone/config.yaml` | `%AppData%\hone\config.yaml` |
+| **Chrome profile** | `~/.local/share/hone/browser-profile/` | `%AppData%\hone\browser-profile\` |
 
 ---
 
 ## Logging in to problem sites
 
-The Chrome profile is reused across sessions, so you only need to log in once. Close Google Chrome before running auth:
+The Chrome profile is reused across sessions, so you only need to log in once. On macOS, close Google Chrome before running auth:
 
 ```sh
 hone auth neetcode   # opens a browser window — log in, then press Enter

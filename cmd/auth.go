@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
+	"github.com/pricklywiggles/hone/internal/browser"
 	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/spf13/cobra"
@@ -27,16 +29,18 @@ var authCmd = &cobra.Command{
 			return fmt.Errorf("unsupported platform %q", args[0])
 		}
 
-		if out, _ := exec.Command("pgrep", "-x", "Google Chrome").Output(); len(out) > 0 {
-			fmt.Println("Please close Google Chrome before running auth, then try again.")
-			return nil
+		if runtime.GOOS == "darwin" {
+			if out, _ := exec.Command("pgrep", "-x", "Google Chrome").Output(); len(out) > 0 {
+				fmt.Println("Please close Google Chrome before running auth, then try again.")
+				return nil
+			}
 		}
 
 		profileDir := config.BrowserProfileDir()
 
-		chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-		if _, err := os.Stat(chromePath); err != nil {
-			return fmt.Errorf("Google Chrome not found at %s", chromePath)
+		chromePath, err := browser.ChromePath()
+		if err != nil {
+			return err
 		}
 
 		chromeCmd := exec.Command(chromePath,

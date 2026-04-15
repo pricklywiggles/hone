@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/pricklywiggles/hone/internal/browser"
+	"github.com/pricklywiggles/hone/internal/config"
 	"github.com/pricklywiggles/hone/internal/debuglog"
 	"github.com/pricklywiggles/hone/internal/platform"
 	"github.com/spf13/viper"
@@ -27,7 +29,10 @@ type Browser struct {
 // NewBrowser launches a headless Chrome process and connects Rod to it.
 // Call Close() when done to kill Chrome and clean up profile locks.
 func NewBrowser(profileDir string) (*Browser, error) {
-	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+	chromePath, err := browser.ChromePath()
+	if err != nil {
+		return nil, err
+	}
 	wsURL, kill, err := launchChrome(chromePath, profileDir)
 	if err != nil {
 		return nil, err
@@ -152,8 +157,7 @@ func Scrape(b *Browser, platformName, slug string) (platform.ProblemMeta, error)
 
 	if os.Getenv("HONE_DEBUG") != "" {
 		html, _ := page.HTML()
-		homeDir, _ := os.UserHomeDir()
-		os.WriteFile(filepath.Join(homeDir, ".local", "share", "hone", "debug-page.html"), []byte(html), 0644)
+		os.WriteFile(filepath.Join(config.DataDir(), "debug-page.html"), []byte(html), 0644)
 		debuglog.Log("scrape: saved page HTML to debug-page.html")
 	}
 

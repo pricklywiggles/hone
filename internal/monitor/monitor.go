@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/pricklywiggles/hone/internal/browser"
 	"github.com/pricklywiggles/hone/internal/debuglog"
 	"github.com/pricklywiggles/hone/internal/platform"
 )
@@ -32,10 +33,13 @@ type Session struct {
 
 // NewSession launches a headful Chrome instance using the persistent profile.
 func NewSession(profileDir string) (*Session, error) {
-	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+	chromePath, err := browser.ChromePath()
+	if err != nil {
+		return nil, fmt.Errorf("monitor: %w", err)
+	}
 
 	var u string
-	err := rod.Try(func() {
+	err = rod.Try(func() {
 		u = launcher.NewUserMode().
 			Bin(chromePath).
 			UserDataDir(profileDir).
@@ -85,11 +89,14 @@ func (s *Session) Close() {
 func (s *Session) reconnect() error {
 	rod.Try(func() { s.browser.MustClose() })
 
-	chromePath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+	chromePath, err := browser.ChromePath()
+	if err != nil {
+		return fmt.Errorf("reconnect: %w", err)
+	}
 
-	var u string
-	err := rod.Try(func() {
-		u = launcher.NewUserMode().
+	var u2 string
+	err = rod.Try(func() {
+		u2 = launcher.NewUserMode().
 			Bin(chromePath).
 			UserDataDir(s.profileDir).
 			MustLaunch()
@@ -98,15 +105,15 @@ func (s *Session) reconnect() error {
 		return fmt.Errorf("reconnect: launch chrome: %w", err)
 	}
 
-	var browser *rod.Browser
+	var b *rod.Browser
 	err = rod.Try(func() {
-		browser = rod.New().ControlURL(u).MustConnect().NoDefaultDevice()
+		b = rod.New().ControlURL(u2).MustConnect().NoDefaultDevice()
 	})
 	if err != nil {
 		return fmt.Errorf("reconnect: connect to chrome: %w", err)
 	}
 
-	s.browser = browser
+	s.browser = b
 	return nil
 }
 
