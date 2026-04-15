@@ -91,7 +91,7 @@ var (
 			BorderForeground(colorDimBg).
 			BorderBottom(true)
 	ctSelectedStyle = lipgloss.NewStyle().
-			Foreground(colorBright).
+			Foreground(lipgloss.Color("#000000")).
 			Background(colorAccent).
 			Bold(true)
 )
