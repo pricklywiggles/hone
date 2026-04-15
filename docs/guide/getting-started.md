@@ -3,7 +3,9 @@
 ## Requirements
 
 - macOS (arm64 or amd64) or Windows (amd64 or arm64)
-- Google Chrome installed (used for scraping problem metadata and monitoring submissions during practice)
+- **Google Chrome** — used for scraping problem metadata and monitoring submissions during practice
+- **[Homebrew](https://brew.sh)** — macOS package manager (for Homebrew install method)
+- **[Scoop](https://scoop.sh)** — Windows package manager (for Scoop install method)
 
 ---
 
