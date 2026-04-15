@@ -8,7 +8,7 @@ before:
 
 builds:
   - id: hone
-    goos: [darwin]
+    goos: [darwin, windows]
     goarch: [amd64, arm64]
     env:
       - CGO_ENABLED=0
@@ -20,7 +20,7 @@ builds:
     hooks:
       post:
         - cmd: >-
-            sh -c '[ -z "$MACOS_SIGN_IDENTITY" ] ||
+            sh -c '[ -z "$MACOS_SIGN_IDENTITY" ] || [ "{{ .Os }}" != "darwin" ] ||
             codesign --force --options runtime
             --sign "$MACOS_SIGN_IDENTITY"
             --timestamp "{{ .Path }}"'
@@ -29,8 +29,11 @@ builds:
 archives:
   - id: hone
     ids: [hone]
-    name_template: "{{ .ProjectName }}_{{ .Version }}_darwin_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     files:
       - LICENSE
       - README.md
@@ -68,5 +71,14 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     url:
       template: "https://github.com/pricklywiggles/hone/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    homepage: https://pricklywiggles.github.io/hone
+    description: Practice coding problems with spaced repetition
+
+scoops:
+  - ids: [hone]
+    repository:
+      owner: pricklywiggles
+      name: scoop-hone
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://pricklywiggles.github.io/hone
     description: Practice coding problems with spaced repetition

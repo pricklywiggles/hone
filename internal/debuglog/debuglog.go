@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -19,11 +20,7 @@ var initOnce = sync.OnceFunc(func() {
 		return
 	}
 	enabled = true
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return
-	}
-	path := filepath.Join(homeDir, ".local", "share", "hone", "debug.log")
+	path := filepath.Join(logDir(), "debug.log")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return
@@ -33,6 +30,16 @@ var initOnce = sync.OnceFunc(func() {
 
 func init() {
 	initOnce()
+}
+
+func logDir() string {
+	if runtime.GOOS == "windows" {
+		if dir, err := os.UserConfigDir(); err == nil {
+			return filepath.Join(dir, "hone")
+		}
+	}
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".local", "share", "hone")
 }
 
 func Log(format string, args ...any) {

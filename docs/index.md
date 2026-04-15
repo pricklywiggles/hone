@@ -2,7 +2,7 @@
 
 **Practice coding problems with spaced repetition from your terminal.**
 
-hone is a macOS CLI that tracks your LeetCode, NeetCode, and GeeksForGeeks sessions, schedules problems using the SM-2 algorithm, and keeps you practicing the right things at the right time. Open a problem in your browser, submit it, and hone records the result automatically.
+hone is a CLI tool for macOS and Windows that tracks your LeetCode, NeetCode, and GeeksForGeeks sessions, schedules problems using the SM-2 algorithm, and keeps you practicing the right things at the right time. Open a problem in your browser, submit it, and hone records the result automatically.
 
 <br><br>
 
@@ -31,9 +31,16 @@ When you finish all due problems in a session, you can keep practicing — hone 
 
 ## Quick start
 
-/// tab | Homebrew
+/// tab | macOS (Homebrew)
 ```sh
 brew install pricklywiggles/hone/hone
+```
+///
+
+/// tab | Windows (Scoop)
+```sh
+scoop bucket add hone https://github.com/pricklywiggles/scoop-hone
+scoop install hone
 ```
 ///
 

@@ -10,25 +10,20 @@ import (
 	"github.com/spf13/viper"
 )
 
+func ConfigDir() string { return configDir() }
+func DataDir() string   { return dataDir() }
+
 func Init() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
+	if err := os.MkdirAll(ConfigDir(), 0o755); err != nil {
 		return err
 	}
-
-	configDir := filepath.Join(homeDir, ".config", "hone")
-	dataDir := filepath.Join(homeDir, ".local", "share", "hone")
-
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+	if err := os.MkdirAll(DataDir(), 0o755); err != nil {
 		return err
 	}
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(configDir)
+	viper.AddConfigPath(ConfigDir())
 
 	setDefaults()
 
@@ -39,11 +34,6 @@ func Init() error {
 	}
 
 	return nil
-}
-
-func DataDir() string {
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".local", "share", "hone")
 }
 
 func FailedURLsPath() string {
@@ -64,8 +54,7 @@ func appendToFile(path, url string) {
 }
 
 func BrowserProfileDir() string {
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".local", "share", "hone", "browser-profile")
+	return filepath.Join(DataDir(), "browser-profile")
 }
 
 // ThresholdsFor returns the fast/normal duration thresholds for the given
