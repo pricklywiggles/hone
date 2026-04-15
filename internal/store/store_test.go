@@ -626,6 +626,109 @@ func TestGetPlaylistPerfStats_Ranking(t *testing.T) {
 	}
 }
 
+func TestGetTopicStats_NullInflation(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// Topic with 3 problems; only problem 1 has attempts.
+	// Problems 2 and 3 produce NULL rows via LEFT JOIN on attempts.
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	seedProblem(t, d, "leetcode", "three-sum", "medium")
+	seedProblem(t, d, "leetcode", "four-sum", "hard")
+
+	d.MustExec(`INSERT INTO topics (name) VALUES ('arrays')`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (1, 1)`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (2, 1)`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (3, 1)`)
+
+	now := time.Now().UTC()
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	stats, err := GetTopicStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 topic, got %d", len(stats))
+	}
+
+	s := stats[0]
+	if s.Successes != 1 {
+		t.Errorf("successes = %d, want 1", s.Successes)
+	}
+	if s.Failures != 0 {
+		t.Errorf("failures = %d, want 0 (NULL rows must not count as failures)", s.Failures)
+	}
+	if s.SuccessRate < 0 {
+		t.Errorf("success_rate = %f, should be positive with 1 success and 0 failures", s.SuccessRate)
+	}
+}
+
+func TestGetPlaylistPerfStats_NullInflation(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	seedProblem(t, d, "leetcode", "three-sum", "medium")
+
+	d.MustExec(`INSERT INTO playlists (name) VALUES ('mixed')`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 1, 0)`)
+	d.MustExec(`INSERT INTO playlist_problems (playlist_id, problem_id, position) VALUES (1, 2, 1)`)
+
+	now := time.Now().UTC()
+	RecordAttempt(d, 1, now, now.Add(5*time.Minute), "success", 300, 5)
+
+	stats, err := GetPlaylistPerfStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 playlist, got %d", len(stats))
+	}
+
+	s := stats[0]
+	if s.Failures != 0 {
+		t.Errorf("failures = %d, want 0 (NULL rows must not count as failures)", s.Failures)
+	}
+	if s.SuccessRate < 0 {
+		t.Errorf("success_rate = %f, should be positive with 1 success and 0 failures", s.SuccessRate)
+	}
+}
+
+func TestGetTopicStats_AllUnattempted(t *testing.T) {
+	d, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	seedProblem(t, d, "leetcode", "two-sum", "easy")
+	d.MustExec(`INSERT INTO topics (name) VALUES ('arrays')`)
+	d.MustExec(`INSERT INTO problem_topics (problem_id, topic_id) VALUES (1, 1)`)
+
+	stats, err := GetTopicStats(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 topic, got %d", len(stats))
+	}
+
+	s := stats[0]
+	if s.Successes != 0 || s.Failures != 0 {
+		t.Errorf("unattempted topic: successes=%d failures=%d, want 0/0", s.Successes, s.Failures)
+	}
+	if s.SuccessRate != -1 {
+		t.Errorf("unattempted topic: success_rate=%f, want -1 sentinel", s.SuccessRate)
+	}
+}
+
 func seedProblem(t *testing.T, d *sqlx.DB, platform, slug, difficulty string) {
 	t.Helper()
 	d.MustExec(

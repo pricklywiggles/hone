@@ -188,8 +188,8 @@ func GetDiffStats(db *sqlx.DB) ([]DiffStat, error) {
 	return stats, err
 }
 
-// GetTopicStats returns per-topic stats ordered by performance ascending
-// ((successes - failures) / total problems). Topics with no attempts appear last.
+// GetTopicStats returns per-topic stats ordered by performance ascending.
+// Topics with no attempts appear last.
 func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 	today := localToday()
 	var stats []TopicStat
@@ -218,8 +218,8 @@ func GetTopicStats(db *sqlx.DB) ([]TopicStat, error) {
 	return stats, err
 }
 
-// GetPlaylistPerfStats returns per-playlist stats ordered by performance ascending
-// ((successes - failures) / total problems). Playlists with no attempts appear last.
+// GetPlaylistPerfStats returns per-playlist stats ordered by performance ascending.
+// Playlists with no attempts appear last.
 func GetPlaylistPerfStats(db *sqlx.DB) ([]TopicStat, error) {
 	today := localToday()
 	var stats []TopicStat

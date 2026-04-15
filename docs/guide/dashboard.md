@@ -20,7 +20,7 @@ The Stats tab is the landing screen. It shows:
 
 - **Overview cards** — total problems, due today, mastered count, current streak
 - **Progress bars** — segmented bars showing mastered/attempted split per difficulty (Easy / Medium / Hard), with color legend
-- **Worst performance by playlist** — playlists ranked by (successes − failures) / total problems; only shown for playlists with attempts
+- **Worst performance by playlist** — playlists ranked by (successes − failures) / total problems, excluding unattempted problems from the numerator; only shown for playlists with attempts
 - **Worst performance by topic** — topics ranked the same way; bars show succeeded/failed/unattempted segments
 - **Currently practicing** — shown when a playlist or topic filter is active; displays filter name with due count
 
@@ -79,7 +79,7 @@ Lists all topics derived from your problem library.
 | Key | Action |
 |-----|--------|
 | `Enter` | Toggle topic as active filter |
-| `s` | Cycle sort order (alphabetical / % mastered / weakest first) |
+| `s` | Cycle sort order (alphabetical / % mastered / success rate) |
 
 The active topic is shown with a `*` marker. Selecting a topic clears any active playlist filter.
 
