@@ -29,6 +29,14 @@ When you finish all due problems in a session, you can keep practicing — hone 
 
 ---
 
+## Prerequisites
+
+- **Google Chrome** — used for scraping problem metadata and monitoring submissions during practice
+- **[Homebrew](https://brew.sh)** — macOS package manager (for Homebrew install method)
+- **[Scoop](https://scoop.sh)** — Windows package manager (for Scoop install method)
+
+---
+
 ## Quick start
 
 /// tab | macOS (Homebrew)
