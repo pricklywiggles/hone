@@ -13,9 +13,9 @@ go run .                # Run the CLI (creates DB on first run)
 go run . --help         # Show command tree
 ```
 
-Data: `~/.local/share/hone/data.db` | Config: `~/.config/hone/config.yaml`
+Data: `config.DataDir()`/data.db | Config: `config.ConfigDir()`/config.yaml (macOS/Linux: XDG paths, Windows: `%AppData%\hone`)
 
-To reset the database: `rm ~/.local/share/hone/data.db` (recreated on next run).
+To reset the database: delete `data.db` from the data directory (recreated on next run).
 
 ## Dependencies
 
@@ -29,7 +29,7 @@ To reset the database: `rm ~/.local/share/hone/data.db` (recreated on next run).
 
 # System Prompt: hone — Coding Practice CLI
 
-You are building a Go CLI application called hone for macOS that helps users practice coding problems using spaced repetition.
+You are building a Go CLI application called hone for macOS and Windows that helps users practice coding problems using spaced repetition.
 
 ## Tech Stack
 
@@ -39,15 +39,16 @@ You are building a Go CLI application called hone for macOS that helps users pra
 - **SQLite** via `modernc.org/sqlite` + `sqlx` — data storage (single file, no CGO)
 - **Rod** (`go-rod/rod`) — browser automation (headful for practice, headless for scraping)
 - **goose** or embedded SQL — schema migrations
-- **Homebrew** — distribution via a Homebrew tap
+- **Homebrew** — distribution via a Homebrew cask (macOS)
+- **Scoop** — distribution via a Scoop bucket (Windows)
 
 ## Architecture Principles
 
 - Commands are defined with Cobra. TUI-driven commands launch a Bubble Tea program.
 - Long-running external work (browser monitoring via Rod, database queries) communicates with Bubble Tea models through Go channels wrapped in `tea.Cmd` functions.
-- Configuration lives in `~/.config/hone/config.yaml` managed by Viper. This includes duration thresholds and platform URL templates (e.g. `platforms.neetcode.url_template: "https://neetcode.io/problems/{{slug}}/question"`). Problem URLs are constructed at runtime from platform + slug + template.
-- Data lives in `~/.local/share/hone/data.db` as a SQLite database.
-- The application is distributed as a Homebrew tap (`brew install [org]/tap/hone`). The build uses GoReleaser to produce macOS binaries and generate the Homebrew formula automatically.
+- Configuration lives in `config.ConfigDir()/config.yaml` managed by Viper (macOS/Linux: `~/.config/hone`, Windows: `%AppData%\hone`). This includes duration thresholds and platform URL templates (e.g. `platforms.neetcode.url_template: "https://neetcode.io/problems/{{slug}}/question"`). Problem URLs are constructed at runtime from platform + slug + template.
+- Data lives in `config.DataDir()/data.db` as a SQLite database (macOS/Linux: `~/.local/share/hone`, Windows: `%AppData%\hone`). Paths are abstracted via build-tagged functions in `internal/config/paths_unix.go` and `paths_windows.go`.
+- The application is distributed as a Homebrew cask (macOS) and Scoop bucket (Windows). The build uses GoReleaser to produce macOS and Windows binaries and update package manager manifests automatically.
 
 ## Default Behavior
 
@@ -146,10 +147,18 @@ When all due problems have been completed, the session enters free practice. Suc
 - **Platform registry**: Each platform (LeetCode, NeetCode, GeeksForGeeks) is a self-contained file in `internal/platform/` implementing the `Platform` interface. Platforms self-register via `init()`. Scraping selectors, monitor selectors, URL parsing, and wait strategies are all encapsulated per platform. Adding a new platform means creating one file — see `docs/dev/platforms.md`.
 - **Practice sessions**: launches a visible (headful) Chrome window. Monitors the DOM for submission result indicators via the platform's `DetectResult()` method. Sends results back to the TUI via Go channels.
 - **Scraping**: runs headless. The `import` command parses a pasted URL to identify the platform and extract the slug, then navigates to the page to scrape title, topics, difficulty, and other metadata. The scraper is a thin orchestrator; platform-specific extraction is in each platform file.
-- **External Chrome launch**: The scraper launches Chrome via `exec.Command` (not Rod's `launcher.New()`) because Rod's launcher uses `--use-mock-keychain` and other flags that prevent Chrome from accessing the macOS Keychain, which is required to decrypt cookies saved during `hone auth`.
+- **External Chrome launch**: The scraper launches Chrome via `exec.Command` (not Rod's `launcher.New()`) because Rod's launcher uses `--use-mock-keychain` and other flags that prevent Chrome from accessing the OS credential store (macOS Keychain), which is required to decrypt cookies saved during `hone auth`.
 - **Browser reuse**: Batch and import operations share a single `scraper.Browser` instance across all URLs. Launching/killing Chrome per URL causes port exhaustion, profile lock corruption, and panics. Panic-prone Rod calls (`MustConnect`, `MustPage`) are wrapped in `rod.Try()`.
 - **Platform-specific waits**: Platforms that need extra time after page load implement `ExtraWait()`. NeetCode sleeps 3s (client-side auth rendering). GeeksForGeeks sleeps 2s. LeetCode needs no extra wait.
 - **Topic normalization**: Dashes in topic names are replaced with spaces for all platforms to prevent duplicates (e.g. "breadth-first search" → "breadth first search").
+
+## Cross-Platform Conventions
+
+- Build tags use `!windows` for the default (macOS/Linux) and `windows` for Windows-specific code. Do not use `darwin` in filenames — Go treats `_darwin.go` as an implicit build constraint regardless of `//go:build` tags.
+- `internal/browser/` provides `ChromePath() (string, error)` via build-tagged files (`chrome_default.go`, `chrome_windows.go`). All Chrome path lookups go through this package.
+- `internal/config/` provides `ConfigDir()` and `DataDir()` via build-tagged files (`paths_unix.go`, `paths_windows.go`).
+- `internal/debuglog/` cannot import `internal/config` (import cycle: config → platform → debuglog → config), so it has its own `logDir()` with duplicated path logic.
+- macOS-only system calls (`osascript`, `pgrep`) are guarded with `runtime.GOOS == "darwin"` checks.
 
 ## TUI Design
 
